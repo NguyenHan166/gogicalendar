@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+button, select, input[type="button"], input[type="submit"], input[type="checkbox"], input[type="radio"], [role="button"], .cursor-pointer {
+  cursor: pointer !important;
+}
+
+/* Hide number input arrows */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  header,
+  aside,
+  .no-print,
+  button,
+  select,
+  input {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  table {
+    page-break-inside: avoid;
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+}
+
+/* Custom Login Page Animations & Background effects */
+@keyframes floatEmber {
+  0% {
+    transform: translateY(110vh) translateX(0) scale(0.5);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translateY(50vh) translateX(-20px) scale(1.2);
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-10vh) translateX(30px) scale(0.3);
+    opacity: 0;
+  }
+}
+
+.animate-ember-1 { animation: floatEmber 12s infinite linear; }
+.animate-ember-2 { animation: floatEmber 15s infinite linear; }
+.animate-ember-3 { animation: floatEmber 9s infinite linear; }
+.animate-ember-4 { animation: floatEmber 18s infinite linear; }
+.animate-ember-5 { animation: floatEmber 14s infinite linear; }
+.animate-ember-6 { animation: floatEmber 11s infinite linear; }
+.animate-ember-7 { animation: floatEmber 16s infinite linear; }
+.animate-ember-8 { animation: floatEmber 20s infinite linear; }
+
+/* Animated gradient background */
+@keyframes gradientBg {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animated-gradient-bg {
+  background: linear-gradient(-45deg, #fdf6f0, #fffcf9, #fff5f0, #fffcf6, #fff0e8);
+  background-size: 400% 400%;
+  animation: gradientBg 18s ease infinite;
+}
+

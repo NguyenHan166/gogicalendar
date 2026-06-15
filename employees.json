@@ -1,0 +1,285 @@
+[
+  {
+    "employeeId": "1054413",
+    "name": "Hoàng Đức Hữu",
+    "phone": "0824.678.226",
+    "role": "manager",
+    "level": "RM",
+    "scheduleGroup": "BAN QUẢN LÝ",
+    "primaryDepartment": "Quản lý",
+    "skills": {
+      "Order": true,
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "0198393",
+    "name": "Nguyễn Văn Hân",
+    "phone": "0357.516.001",
+    "role": "manager",
+    "level": "QLC",
+    "scheduleGroup": "BAN QUẢN LÝ",
+    "primaryDepartment": "Quản lý",
+    "skills": {
+      "Order": true,
+      "Phục vụ": true,
+      "Bar": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1048964",
+    "name": "Lê Hải Anh",
+    "phone": "0901.111.001",
+    "role": "employee",
+    "level": "S1.1",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Order": true,
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "0198394",
+    "name": "Nguyễn Thị Hương",
+    "phone": "0901.111.002",
+    "role": "employee",
+    "level": "S1.2",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Order": true,
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E100001",
+    "name": "Khánh Hà",
+    "phone": "0901.111.003",
+    "role": "employee",
+    "level": "NEW",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E100002",
+    "name": "Hồng Bích",
+    "phone": "0901.111.004",
+    "role": "employee",
+    "level": "HUB",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E100003",
+    "name": "Uyên",
+    "phone": "0901.111.005",
+    "role": "employee",
+    "level": "HUB",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Phục vụ": true,
+      "Order": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E100004",
+    "name": "Trang",
+    "phone": "0901.111.006",
+    "role": "employee",
+    "level": "HUB",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E100005",
+    "name": "Như Ý",
+    "phone": "0901.111.007",
+    "role": "employee",
+    "level": "HUB",
+    "scheduleGroup": "ORDER + PHỤC VỤ",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1072840",
+    "name": "Nguyễn Trung Kiên",
+    "phone": "0901.222.001",
+    "role": "employee",
+    "level": "S2.1",
+    "scheduleGroup": "BOY",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Boy": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E200001",
+    "name": "Hoàng Mạnh Tùng",
+    "phone": "0901.222.002",
+    "role": "employee",
+    "level": "S2.2",
+    "scheduleGroup": "BOY",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Boy": true,
+      "Phục vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E200002",
+    "name": "Nguyễn Chu Nhật Tiến",
+    "phone": "0901.222.003",
+    "role": "employee",
+    "level": "S2.3",
+    "scheduleGroup": "BOY",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Boy": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E200003",
+    "name": "Anh Tuấn",
+    "phone": "0901.222.004",
+    "role": "employee",
+    "level": "S1.3",
+    "scheduleGroup": "BOY",
+    "primaryDepartment": "FOH",
+    "skills": {
+      "Boy": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1060819",
+    "name": "Nguyễn Khánh Hưng",
+    "phone": "0901.333.001",
+    "role": "employee",
+    "level": "S3.1",
+    "scheduleGroup": "BOH (BẾP)",
+    "primaryDepartment": "BOH",
+    "skills": {
+      "Bếp nóng": true,
+      "Bếp thịt": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1044771",
+    "name": "Phạm Thủy Quỳnh",
+    "phone": "0901.333.002",
+    "role": "employee",
+    "level": "S3.2",
+    "scheduleGroup": "BOH (BẾP)",
+    "primaryDepartment": "BOH",
+    "skills": {
+      "Bếp salad": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1070637",
+    "name": "Tô Ngọc Ánh",
+    "phone": "0901.333.003",
+    "role": "employee",
+    "level": "S3.3",
+    "scheduleGroup": "BOH (BẾP)",
+    "primaryDepartment": "BOH",
+    "skills": {
+      "Bếp nóng": true,
+      "Bếp thịt": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1073283",
+    "name": "Lê Hà Quỳnh Nhi",
+    "phone": "0901.333.004",
+    "role": "employee",
+    "level": "S1.1",
+    "scheduleGroup": "BOH (BẾP)",
+    "primaryDepartment": "BOH",
+    "skills": {
+      "Bếp salad": true,
+      "Bếp nóng": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "E300001",
+    "name": "Phạm Thị Kim Cúc",
+    "phone": "0901.333.005",
+    "role": "employee",
+    "level": "S1.2",
+    "scheduleGroup": "BOH (BẾP)",
+    "primaryDepartment": "BOH",
+    "skills": {
+      "Bếp thịt": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1073589",
+    "name": "Nguyễn Thị Lý",
+    "phone": "0901.444.001",
+    "role": "employee",
+    "level": "HUB",
+    "scheduleGroup": "TẠP VỤ",
+    "primaryDepartment": "Tạp vụ",
+    "skills": {
+      "Tạp vụ": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1060418",
+    "name": "Trường Thị Như Yến",
+    "phone": "0901.555.001",
+    "role": "employee",
+    "level": "S1.1",
+    "scheduleGroup": "BAR",
+    "primaryDepartment": "Bar",
+    "skills": {
+      "Bar": true
+    },
+    "status": "active"
+  },
+  {
+    "employeeId": "1074957",
+    "name": "Hoàng Thị Thanh Hà",
+    "phone": "0901.555.002",
+    "role": "employee",
+    "level": "S1.2",
+    "scheduleGroup": "BAR",
+    "primaryDepartment": "Bar",
+    "skills": {
+      "Bar": true
+    },
+    "status": "active"
+  }
+]

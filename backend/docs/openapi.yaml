@@ -1,0 +1,1418 @@
+openapi: 3.1.0
+info:
+  title: GogiCalendar API
+  version: 0.3.0
+  description: Phase 3 API contract with authentication, employees, and shift codes implemented.
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+tags:
+  - name: Health
+  - name: Auth
+  - name: Employees
+  - name: Shifts
+  - name: Schedules
+  - name: Preferences
+  - name: Assignments
+  - name: Forecast
+  - name: Audit
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthSuccess'
+  /ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      security: []
+      responses:
+        '200':
+          description: Application and MongoDB are ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthSuccess'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /auth/login/manager:
+    post:
+      tags: [Auth]
+      operationId: loginManager
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManagerLoginRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/login/employee:
+    post:
+      tags: [Auth]
+      operationId: loginEmployee
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeLoginRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshSession
+      security:
+        - refreshToken: []
+        - refreshCookie: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: Session revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current manager or employee profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /employees:
+    get:
+      tags: [Employees]
+      operationId: listEmployees
+      description: Manager-only employee directory with pagination and filters.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - name: level
+          in: query
+          schema: { type: string }
+        - name: scheduleGroup
+          in: query
+          schema: { type: string }
+        - name: primaryDepartment
+          in: query
+          schema: { type: string }
+        - name: skill
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/EmployeeStatus'
+      responses:
+        '200':
+          description: Paginated employees
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeListSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Employees]
+      operationId: createEmployee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeWrite'
+      responses:
+        '201':
+          description: Employee created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /employees/{id}:
+    parameters:
+      - $ref: '#/components/parameters/EmployeeId'
+    get:
+      tags: [Employees]
+      operationId: getEmployee
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Employees]
+      operationId: updateEmployee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeUpdate'
+      responses:
+        '200':
+          description: Employee updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /employees/{id}/status:
+    patch:
+      tags: [Employees]
+      operationId: updateEmployeeStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/EmployeeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdate'
+      responses:
+        '200':
+          description: Employee status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /shifts:
+    get:
+      tags: [Shifts]
+      operationId: listShifts
+      description: Managers may filter all shifts. Employees always receive active shifts only.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Search'
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/ShiftType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/EmployeeStatus'
+        - name: department
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Paginated shifts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftListSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Shifts]
+      operationId: createShift
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftWrite'
+      responses:
+        '201':
+          description: Shift created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /shifts/{code}:
+    parameters:
+      - $ref: '#/components/parameters/ShiftCode'
+    get:
+      tags: [Shifts]
+      operationId: getShift
+      description: Employees receive 404 for inactive shifts; managers may retrieve them.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Shift
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Shifts]
+      operationId: updateShift
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShiftUpdate'
+      responses:
+        '200':
+          description: Shift updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /shifts/{code}/status:
+    patch:
+      tags: [Shifts]
+      operationId: updateShiftStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ShiftCode'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusUpdate'
+      responses:
+        '200':
+          description: Shift status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /schedules:
+    get:
+      tags: [Schedules]
+      operationId: listSchedules
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ScheduleStatus'
+        - name: year
+          in: query
+          schema: { type: integer }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Visible schedules
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleListSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Schedules]
+      operationId: createSchedule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [startDate]
+              properties:
+                startDate: { type: string, format: date }
+                registrationDeadline: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Schedule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/create-next:
+    post:
+      tags: [Schedules]
+      operationId: createNextSchedule
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                registrationDeadline: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Next ISO week created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/{weekId}:
+    get:
+      tags: [Schedules]
+      operationId: getSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      responses:
+        '200':
+          description: Schedule projected according to caller role and status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /schedules/{weekId}/status:
+    patch:
+      tags: [Schedules]
+      operationId: updateScheduleStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleStatusUpdate'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/{weekId}/preferences/me:
+    get:
+      tags: [Preferences]
+      operationId: getMyPreference
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      responses:
+        '200':
+          description: Current employee preference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreferenceSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Preferences]
+      operationId: upsertMyPreference
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferenceWrite'
+      responses:
+        '200':
+          description: Preference saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/BusinessRuleViolation'
+  /schedules/{weekId}/preferences:
+    get:
+      tags: [Preferences]
+      operationId: listSchedulePreferences
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+        - name: department
+          in: query
+          schema: { type: string }
+        - name: skill
+          in: query
+          schema: { type: string }
+        - name: submitted
+          in: query
+          schema: { type: boolean }
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/PreferenceType'
+      responses:
+        '200':
+          description: Manager preference view
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmployeePreference'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /schedules/{weekId}/preferences/{employeeId}:
+    put:
+      tags: [Preferences]
+      operationId: overrideEmployeePreference
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+        - $ref: '#/components/parameters/EmployeeIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferenceOverride'
+      responses:
+        '200':
+          description: Preference overridden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/{weekId}/assignments:
+    put:
+      tags: [Assignments]
+      operationId: replaceAssignments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentBulkWrite'
+      responses:
+        '200':
+          description: Assignments replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleMutationSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    post:
+      tags: [Assignments]
+      operationId: createAssignment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, day, assignment]
+              properties:
+                version: { type: integer, minimum: 0 }
+                day: { $ref: '#/components/schemas/DayLabel' }
+                assignment: { $ref: '#/components/schemas/ShiftAssignmentWrite' }
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleMutationSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/{weekId}/assignments/{assignmentId}:
+    patch:
+      tags: [Assignments]
+      operationId: updateAssignment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+        - $ref: '#/components/parameters/AssignmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentPatch'
+      responses:
+        '200':
+          description: Assignment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleMutationSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Assignments]
+      operationId: deleteAssignment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+        - $ref: '#/components/parameters/AssignmentId'
+        - name: version
+          in: query
+          required: true
+          schema: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Assignment deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleMutationSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/{weekId}/forecast:
+    put:
+      tags: [Forecast]
+      operationId: updateForecast
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastWrite'
+      responses:
+        '200':
+          description: Forecast updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /schedules/{weekId}/staffing-summary:
+    get:
+      tags: [Forecast]
+      operationId: getStaffingSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+        - name: slot
+          in: query
+          description: Repeatable HH:mm-HH:mm slot
+          schema:
+            type: array
+            items:
+              type: string
+              pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d-(?:[01]\\d|2[0-3]):[0-5]\\d$"
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: Staffing target and variance summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data: { type: object, additionalProperties: true }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /schedules/{weekId}/validate:
+    post:
+      tags: [Schedules]
+      operationId: validateSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/WeekId'
+      responses:
+        '200':
+          description: Blocking errors and warnings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleValidationSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /audit-logs:
+    get:
+      tags: [Audit]
+      operationId: listAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: actorEmployeeId
+          in: query
+          schema: { type: string }
+        - name: action
+          in: query
+          schema: { type: string }
+        - name: resourceType
+          in: query
+          schema: { type: string }
+        - name: resourceId
+          in: query
+          schema: { type: string }
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [success, failure]
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Paginated audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLog' }
+                  meta: { $ref: '#/components/schemas/PaginationMeta' }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    refreshToken:
+      type: apiKey
+      in: header
+      name: X-Refresh-Token
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Search:
+      name: search
+      in: query
+      schema: { type: string, maxLength: 100 }
+    EmployeeId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    EmployeeIdPath:
+      name: employeeId
+      in: path
+      required: true
+      schema: { type: string }
+    ShiftCode:
+      name: code
+      in: path
+      required: true
+      schema: { type: string }
+    WeekId:
+      name: weekId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^\\d{4}-W\\d{2}$"
+    AssignmentId:
+      name: assignmentId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    AuthSuccess:
+      description: Authenticated session
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthSuccess'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: Authentication failed or is required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Forbidden:
+      description: Caller lacks permission
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Conflict:
+      description: Resource, status, or version conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    BusinessRuleViolation:
+      description: Domain rule violation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ServiceUnavailable:
+      description: Dependency is not ready
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    EmployeeRole:
+      type: string
+      enum: [employee, manager]
+    EmployeeStatus:
+      type: string
+      enum: [active, inactive]
+    ShiftType:
+      type: string
+      enum: [work, off, leave]
+    ScheduleStatus:
+      type: string
+      enum: [draft, registration_open, registration_locked, scheduling, published]
+    PreferenceType:
+      type: string
+      enum: [available, preferred, unavailable]
+    DayLabel:
+      type: string
+      enum: [Thứ 2, Thứ 3, Thứ 4, Thứ 5, Thứ 6, Thứ 7, Chủ Nhật]
+    Time:
+      type: string
+      pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [success, error]
+      properties:
+        success: { const: false }
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details:
+              type: array
+              items: {}
+    PaginationMeta:
+      type: object
+      required: [page, limit, total, totalPages]
+      properties:
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+    HealthSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [ok, ready] }
+    ManagerLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 100 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+    EmployeeLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [employeeIdOrPhone]
+      properties:
+        employeeIdOrPhone: { type: string, minLength: 1, maxLength: 100 }
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        refreshToken: { type: string }
+    AuthSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [accessToken, expiresIn, refreshToken, profile]
+          properties:
+            accessToken: { type: string }
+            expiresIn: { type: integer }
+            refreshToken: { type: string }
+            profile: { $ref: '#/components/schemas/Employee' }
+    Employee:
+      type: object
+      additionalProperties: false
+      required: [id, name, phone, role, level, scheduleGroup, primaryDepartment, skills, status]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        role: { $ref: '#/components/schemas/EmployeeRole' }
+        level: { type: string }
+        scheduleGroup: { type: string }
+        primaryDepartment: { type: string }
+        skills:
+          type: object
+          additionalProperties: { type: boolean }
+        note: { type: string }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    EmployeeWrite:
+      type: object
+      additionalProperties: false
+      description: The id may be omitted only for a HUB employee.
+      required: [name, phone, role, level, scheduleGroup, primaryDepartment, skills]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        phone: { type: string }
+        role: { $ref: '#/components/schemas/EmployeeRole' }
+        level: { type: string }
+        scheduleGroup: { type: string }
+        primaryDepartment: { type: string }
+        skills:
+          type: object
+          additionalProperties: { type: boolean }
+        note: { type: string }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    EmployeeUpdate:
+      type: object
+      additionalProperties: false
+      required: [name, phone, role, level, scheduleGroup, primaryDepartment, skills, status]
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        role: { $ref: '#/components/schemas/EmployeeRole' }
+        level: { type: string }
+        scheduleGroup: { type: string }
+        primaryDepartment: { type: string }
+        skills:
+          type: object
+          additionalProperties: { type: boolean }
+        note: { type: string }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    EmployeeSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/Employee' }
+    EmployeeListSuccess:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { const: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Employee' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    StatusUpdate:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    Shift:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          code,
+          name,
+          startTime,
+          endTime,
+          breakMinutes,
+          type,
+          color,
+          isSplit,
+          applicableDepartments,
+          status,
+        ]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        startTime:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - const: ''
+        endTime:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - const: ''
+        breakMinutes: { type: integer, minimum: 0 }
+        type: { $ref: '#/components/schemas/ShiftType' }
+        color: { type: string }
+        note: { type: string }
+        isSplit: { type: boolean }
+        startTime2:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        endTime2:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        applicableDepartments:
+          type: array
+          items: { type: string }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    ShiftWrite:
+      $ref: '#/components/schemas/Shift'
+    ShiftUpdate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          name,
+          startTime,
+          endTime,
+          breakMinutes,
+          type,
+          color,
+          isSplit,
+          applicableDepartments,
+          status,
+        ]
+      properties:
+        name: { type: string }
+        startTime:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - const: ''
+        endTime:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - const: ''
+        breakMinutes: { type: integer, minimum: 0 }
+        type: { $ref: '#/components/schemas/ShiftType' }
+        color: { type: string }
+        note: { type: string }
+        isSplit: { type: boolean }
+        startTime2:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        endTime2:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        applicableDepartments:
+          type: array
+          items: { type: string }
+        status: { $ref: '#/components/schemas/EmployeeStatus' }
+    ShiftSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/Shift' }
+    ShiftListSuccess:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { const: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Shift' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    DayPreference:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { $ref: '#/components/schemas/PreferenceType' }
+        preferredShift: { type: string }
+        note: { type: string, maxLength: 500 }
+    EmployeePreference:
+      type: object
+      additionalProperties: false
+      required: [employeeId, dayPreferences]
+      properties:
+        employeeId: { type: string }
+        dayPreferences:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/DayPreference'
+    PreferenceWrite:
+      type: object
+      additionalProperties: false
+      required: [version, dayPreferences]
+      properties:
+        version: { type: integer, minimum: 0 }
+        dayPreferences:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/DayPreference'
+    PreferenceOverride:
+      allOf:
+        - $ref: '#/components/schemas/PreferenceWrite'
+        - type: object
+          required: [reason]
+          properties:
+            reason: { type: string, minLength: 1, maxLength: 500 }
+    PreferenceSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          oneOf:
+            - $ref: '#/components/schemas/EmployeePreference'
+            - type: 'null'
+    ShiftAssignment:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, employeeId, shiftCode, primaryRole]
+      properties:
+        assignmentId: { type: string }
+        employeeId: { type: string }
+        shiftCode: { type: string }
+        primaryRole: { type: string }
+        secondaryRole: { type: string }
+        note: { type: string, maxLength: 500 }
+    ShiftAssignmentWrite:
+      type: object
+      additionalProperties: false
+      required: [employeeId, shiftCode, primaryRole]
+      properties:
+        employeeId: { type: string }
+        shiftCode: { type: string }
+        primaryRole: { type: string }
+        secondaryRole: { type: string }
+        note: { type: string, maxLength: 500 }
+    AssignmentBulkWrite:
+      type: object
+      additionalProperties: false
+      required: [version, assignments]
+      properties:
+        version: { type: integer, minimum: 0 }
+        assignments:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/ShiftAssignmentWrite'
+    AssignmentPatch:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 0 }
+        day: { $ref: '#/components/schemas/DayLabel' }
+        shiftCode: { type: string }
+        primaryRole: { type: string }
+        secondaryRole: { type: [string, 'null'] }
+        note: { type: [string, 'null'], maxLength: 500 }
+    ForecastWrite:
+      type: object
+      additionalProperties: false
+      required: [version, forecast]
+      properties:
+        version: { type: integer, minimum: 0 }
+        forecast:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: integer
+              minimum: 0
+    WeeklySchedule:
+      type: object
+      additionalProperties: false
+      required: [weekId, startDate, endDate, status, version, assignments, preferences, forecast]
+      properties:
+        weekId: { type: string, pattern: "^\\d{4}-W\\d{2}$" }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/ScheduleStatus' }
+        version: { type: integer, minimum: 0 }
+        registrationDeadline: { type: string, format: date-time }
+        assignments:
+          type: object
+          additionalProperties:
+            type: array
+            items: { $ref: '#/components/schemas/ShiftAssignment' }
+        preferences:
+          type: array
+          items: { $ref: '#/components/schemas/EmployeePreference' }
+        forecast:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: integer
+              minimum: 0
+    ScheduleStatusUpdate:
+      type: object
+      additionalProperties: false
+      required: [status, version]
+      properties:
+        status: { $ref: '#/components/schemas/ScheduleStatus' }
+        version: { type: integer, minimum: 0 }
+        reason: { type: string, maxLength: 500 }
+    ScheduleSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data: { $ref: '#/components/schemas/WeeklySchedule' }
+    ScheduleListSuccess:
+      type: object
+      required: [success, data, meta]
+      properties:
+        success: { const: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/WeeklySchedule' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+    Warning:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        employeeId: { type: string }
+        day: { $ref: '#/components/schemas/DayLabel' }
+        role: { type: string }
+    ScheduleMutationSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [schedule, warnings]
+          properties:
+            schedule: { $ref: '#/components/schemas/WeeklySchedule' }
+            warnings:
+              type: array
+              items: { $ref: '#/components/schemas/Warning' }
+    ScheduleValidationSuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [valid, errors, warnings]
+          properties:
+            valid: { type: boolean }
+            errors:
+              type: array
+              items: { $ref: '#/components/schemas/Warning' }
+            warnings:
+              type: array
+              items: { $ref: '#/components/schemas/Warning' }
+    AuditLog:
+      type: object
+      required: [action, resourceType, outcome, createdAt]
+      properties:
+        actorEmployeeId: { type: string }
+        actorRole:
+          type: string
+          enum: [employee, manager, system]
+        action: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: string }
+        requestId: { type: string }
+        outcome:
+          type: string
+          enum: [success, failure]
+        reason: { type: string }
+        changes: { type: object, additionalProperties: true }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
