@@ -36,9 +36,15 @@ export interface EmployeePreference {
       note?: string;
     };
   };
+  submittedAt?: string;
+  updatedAt?: string;
+  overriddenByEmployeeId?: string;
+  overrideReason?: string;
+  version?: number;
 }
 
 export interface ShiftAssignment {
+  assignmentId?: string;
   employeeId: string;
   shiftCode: string;
   primaryRole: string;
@@ -51,6 +57,8 @@ export interface WeeklySchedule {
   startDate: string;
   endDate: string;
   status: 'draft' | 'registration_open' | 'registration_locked' | 'scheduling' | 'published';
+  version?: number;
+  registrationDeadline?: string;
   assignments: { [dayOfWeek: string]: ShiftAssignment[] };
   preferences: EmployeePreference[];
   forecast: { [dayOfWeek: string]: { [department: string]: number } };

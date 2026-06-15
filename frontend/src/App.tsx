@@ -2,11 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useScheduleStore } from './store/useScheduleStore';
 import { daysOfWeek } from './data/mockData';
 import { ExcelScheduleGrid } from './components/ExcelScheduleGrid';
-import type { Employee, ShiftCode } from './data/mockData';
+import type { Employee, EmployeePreference, ShiftCode, WeeklySchedule } from './data/mockData';
 import { EmployeeModal } from './components/EmployeeModal';
 import { ShiftModal } from './components/ShiftModal';
 import { SearchableShiftSelect } from './components/SearchableShiftSelect';
-import { getApiErrorMessage } from './lib/api';
 import { 
   Calendar, 
   Users, 
@@ -20,7 +19,8 @@ import {
   Printer,
   Plus,
   Pencil,
-  MagnifyingGlass
+  MagnifyingGlass,
+  X
 } from '@phosphor-icons/react';
 
 function App() {
@@ -34,6 +34,8 @@ function App() {
     authError,
     catalogStatus,
     catalogError,
+    scheduleStatus,
+    scheduleError,
     initializeAuth,
     loginEmployee,
     loginManager,
@@ -48,13 +50,18 @@ function App() {
     updateShiftCode,
     updateShiftStatus,
     loadCatalogs,
-    createNextWeek
+    loadSchedules,
+    createNextWeek,
+    toasts,
+    showToast,
+    dismissToast
   } = useScheduleStore();
 
   // Path Router State & Logic
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [catalogSubmitting, setCatalogSubmitting] = useState(false);
+  const [preferenceSubmitting, setPreferenceSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'schedule' | 'settings'>('schedule');
   const [empScheduleTab, setEmpScheduleTab] = useState<'personal' | 'general'>('personal');
 
@@ -223,7 +230,7 @@ function App() {
     e.preventDefault();
     const cleanInput = staffInput.trim();
     if (!cleanInput) {
-      alert('Vui lòng nhập Mã nhân viên hoặc Số điện thoại!');
+      showToast('Vui lòng nhập Mã nhân viên hoặc Số điện thoại!', 'warning');
       return;
     }
 
@@ -310,8 +317,68 @@ function App() {
   const [empGroupFilter, setEmpGroupFilter] = useState('all');
   const [empSkillFilter, setEmpSkillFilter] = useState('all');
 
-  const activeSchedule = schedules.find(s => s.weekId === currentWeekId) || schedules[0];
+  const emptyDayAssignments = Object.fromEntries(daysOfWeek.map((day) => [day, []])) as WeeklySchedule['assignments'];
+  const emptyForecast = Object.fromEntries(daysOfWeek.map((day) => [day, {}])) as WeeklySchedule['forecast'];
+  const emptySchedule: WeeklySchedule = {
+    weekId: '',
+    startDate: '',
+    endDate: '',
+    status: 'draft',
+    version: 0,
+    assignments: emptyDayAssignments,
+    preferences: [],
+    forecast: emptyForecast,
+  };
+  const activeSchedule = schedules.find(s => s.weekId === currentWeekId) || schedules[0] || emptySchedule;
+  const hasSchedules = schedules.length > 0;
   const isManager = currentUser?.role === 'manager';
+  const defaultPreferredShift =
+    shiftCodes.find((shift) => shift.type === 'work' && shift.status !== 'inactive')?.code ?? 'P22';
+  const registrationDeadlineText = activeSchedule.registrationDeadline
+    ? new Intl.DateTimeFormat('vi-VN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date(activeSchedule.registrationDeadline))
+    : 'Thứ Năm hàng tuần';
+
+  useEffect(() => {
+    if (!currentUser || !hasSchedules || currentUser.role !== 'employee') return;
+
+    const savedPreference = activeSchedule.preferences.find(
+      (preference) => preference.employeeId === currentUser.id,
+    );
+    const nextPrefs: Record<
+      string,
+      {
+        type: 'available' | 'preferred' | 'unavailable';
+        preferredShift: string;
+        note: string;
+      }
+    > = {};
+
+    daysOfWeek.forEach((day) => {
+      const savedDay = savedPreference?.dayPreferences[day];
+      nextPrefs[day] = {
+        type: savedDay?.type ?? 'available',
+        preferredShift: savedDay?.preferredShift ?? defaultPreferredShift,
+        note: savedDay?.note ?? '',
+      };
+    });
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setTempPrefs(nextPrefs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeSchedule.preferences,
+    activeSchedule.weekId,
+    currentUser,
+    defaultPreferredShift,
+    hasSchedules,
+  ]);
   
   const getShiftColor = (code: string) => {
     const shift = shiftCodes.find(s => s.code === code);
@@ -351,27 +418,50 @@ function App() {
 
 
 
-  const handlePreferenceSubmit = (e: React.FormEvent) => {
+  const handlePreferenceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser || !hasSchedules || preferenceSubmitting) return;
     
-    const formattedPrefs: {
-      [day: string]: {
-        type: 'available' | 'preferred' | 'unavailable';
-        preferredShift?: string;
-        note?: string;
-      };
-    } = {};
+    const formattedPrefs: EmployeePreference['dayPreferences'] = {};
+    const validPreferredShiftCodes = new Set(
+      shiftCodes
+        .filter((shift) => shift.type === 'work' && shift.status !== 'inactive')
+        .map((shift) => shift.code),
+    );
+    let hasInvalidPreferredShift = false;
+
     daysOfWeek.forEach(day => {
+      const dayPreference = tempPrefs[day];
+      const preferredShift =
+        dayPreference.type === 'preferred'
+          ? dayPreference.preferredShift || defaultPreferredShift
+          : undefined;
+      if (
+        dayPreference.type === 'preferred' &&
+        (!preferredShift || !validPreferredShiftCodes.has(preferredShift))
+      ) {
+        hasInvalidPreferredShift = true;
+      }
       formattedPrefs[day] = {
-        type: tempPrefs[day].type,
-        preferredShift: tempPrefs[day].type === 'preferred' ? tempPrefs[day].preferredShift : undefined,
-        note: tempPrefs[day].note || undefined
+        type: dayPreference.type,
+        preferredShift,
+        note: dayPreference.note.trim() || undefined
       };
     });
 
-    submitPreferences(currentWeekId, currentUser.id, formattedPrefs);
-    alert('Đã gửi nguyện vọng đi làm tuần sau thành công!');
+    if (hasInvalidPreferredShift) {
+      showToast('Vui lòng chọn mã ca làm việc hợp lệ cho các ngày muốn ca.', 'warning');
+      return;
+    }
+
+    setPreferenceSubmitting(true);
+    try {
+      await submitPreferences(currentWeekId, currentUser.id, formattedPrefs);
+    } catch {
+      // Store already shows the backend error toast.
+    } finally {
+      setPreferenceSubmitting(false);
+    }
   };
 
   const handleQuickPref = (type: 'available' | 'preferred' | 'unavailable', shiftCode?: string) => {
@@ -379,7 +469,7 @@ function App() {
     daysOfWeek.forEach(day => {
       updated[day] = {
         type,
-        preferredShift: shiftCode || 'P22',
+        preferredShift: shiftCode || defaultPreferredShift,
         note: type === 'unavailable' ? 'Nghỉ cá nhân' : ''
       };
     });
@@ -411,42 +501,27 @@ function App() {
     setEmployeeModalOpen(true);
   };
 
-  const handleCreateNewWeek = () => {
-    let latestWeek = schedules[0];
-    for (const s of schedules) {
-      if (s.weekId > latestWeek.weekId) {
-        latestWeek = s;
-      }
-    }
-    const lastEnd = new Date(latestWeek.endDate);
-    const nextStart = new Date(lastEnd);
-    nextStart.setDate(lastEnd.getDate() + 1);
-    const nextEnd = new Date(nextStart);
-    nextEnd.setDate(nextStart.getDate() + 6);
-
-    const formatDateStr = (d: Date) => {
-      return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-    };
-
-    const match = latestWeek.weekId.match(/^(\d{4})-W(\d{2})$/);
-    const nextWeekNumStr = (() => {
-      if (!match) return 'Tuần tiếp theo';
-      const year = parseInt(match[1], 10);
-      const weekNum = parseInt(match[2], 10);
-      let nextWeekNum = weekNum + 1;
-      let nextYear = year;
-      if (nextWeekNum > 52) {
-        nextWeekNum = 1;
-        nextYear += 1;
-      }
-      return `Tuần ${nextWeekNum} năm ${nextYear}`;
-    })();
-
+  const handleCreateNewWeek = async () => {
     const confirmCreate = window.confirm(
-      `Bạn có muốn khởi tạo lịch cho tuần mới?\n\n- ${nextWeekNumStr}\n- Thời gian: từ ngày ${formatDateStr(nextStart)} đến ngày ${formatDateStr(nextEnd)}\n\nNhấn OK để xác nhận khởi tạo.`
+      hasSchedules
+        ? 'Bạn có muốn khởi tạo lịch cho tuần ISO tiếp theo không?'
+        : 'Chưa có lịch tuần nào. Bạn có muốn khởi tạo tuần ISO hiện tại không?'
     );
     if (confirmCreate) {
-      createNextWeek();
+      try {
+        await createNextWeek();
+      } catch {
+        // Store already shows API error toast.
+      }
+    }
+  };
+
+  const handleScheduleStatus = async (status: WeeklySchedule['status']) => {
+    if (!activeSchedule.weekId) return;
+    try {
+      await updateScheduleStatus(activeSchedule.weekId, status);
+    } catch {
+      // Store already shows API error toast and refreshes stale schedules.
     }
   };
 
@@ -459,13 +534,13 @@ function App() {
       if (empFormMode === 'add') finalEmp.id = '';
     } else {
       if (!finalEmp.id) {
-        alert('Vui lòng điền đầy đủ Mã nhân viên!');
+        showToast('Vui lòng điền đầy đủ Mã nhân viên!', 'warning');
         return;
       }
     }
 
     if (!finalEmp.name) {
-      alert('Vui lòng điền Họ tên!');
+      showToast('Vui lòng điền Họ tên!', 'warning');
       return;
     }
 
@@ -477,8 +552,8 @@ function App() {
         await updateEmployee(finalEmp);
       }
       setEmployeeModalOpen(false);
-    } catch (error: unknown) {
-      alert(getApiErrorMessage(error));
+    } catch {
+      // Handled by store toasts
     } finally {
       setCatalogSubmitting(false);
     }
@@ -520,7 +595,7 @@ function App() {
   const handleSaveShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shiftForm.code || !shiftForm.name) {
-      alert('Vui lòng điền Mã ca và Tên ca!');
+      showToast('Vui lòng điền Mã ca và Tên ca!', 'warning');
       return;
     }
     const cleanShift: ShiftCode = {
@@ -537,8 +612,8 @@ function App() {
         await updateShiftCode(cleanShift);
       }
       setShiftModalOpen(false);
-    } catch (error: unknown) {
-      alert(getApiErrorMessage(error));
+    } catch {
+      // Handled by store toasts
     } finally {
       setCatalogSubmitting(false);
     }
@@ -551,8 +626,8 @@ function App() {
     }
     try {
       await updateEmployeeStatus(employee.id, status);
-    } catch (error: unknown) {
-      alert(getApiErrorMessage(error));
+    } catch {
+      // Handled by store toasts
     }
   };
 
@@ -563,8 +638,8 @@ function App() {
     }
     try {
       await updateShiftStatus(shift.code, status);
-    } catch (error: unknown) {
-      alert(getApiErrorMessage(error));
+    } catch {
+      // Handled by store toasts
     }
   };
 
@@ -822,6 +897,18 @@ function App() {
               <div>
                 <label className="block text-[10px] text-zinc-500 uppercase tracking-wider font-extrabold mb-1">Chọn Tuần Xem</label>
                 <div className="flex items-center flex-wrap gap-2">
+                  {scheduleStatus === 'loading' && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      Đang tải lịch tuần...
+                    </span>
+                  )}
+
+                  {scheduleStatus !== 'loading' && schedules.length === 0 && (
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-zinc-50 text-zinc-500 border border-dashed border-zinc-300">
+                      Chưa có lịch tuần
+                    </span>
+                  )}
+
                   {schedules.map((s) => {
                     const match = s.weekId.match(/W(\d+)/);
                     const weekNum = match ? match[1] : s.weekId;
@@ -850,7 +937,8 @@ function App() {
                   
                   {isManager && (
                     <button
-                      onClick={handleCreateNewWeek}
+                      onClick={() => void handleCreateNewWeek()}
+                      disabled={scheduleStatus === 'loading'}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all border border-dashed border-amber-500 bg-amber-50 hover:bg-amber-100 text-amber-700 flex items-center gap-1 cursor-pointer"
                       title="Tạo lịch cho tuần tiếp theo"
                     >
@@ -863,18 +951,31 @@ function App() {
 
               <div>
                 <label className="block text-[10px] text-zinc-500 uppercase tracking-wider font-extrabold mb-1">Trạng thái tuần</label>
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(activeSchedule.status)}`}>
-                  {getStatusText(activeSchedule.status)}
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${hasSchedules ? getStatusColor(activeSchedule.status) : 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
+                  {hasSchedules ? getStatusText(activeSchedule.status) : 'Chưa có lịch tuần'}
                 </span>
               </div>
             </div>
 
+            {scheduleError && (
+              <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-center justify-between gap-3 text-xs text-rose-800">
+                <span className="font-bold">{scheduleError}</span>
+                <button
+                  type="button"
+                  onClick={() => void loadSchedules()}
+                  className="shrink-0 px-3 py-1.5 bg-white border border-rose-300 rounded-lg font-bold hover:bg-rose-100"
+                >
+                  Tải lại lịch
+                </button>
+              </div>
+            )}
+
             {/* Manager Actions for Week Status */}
-            {isManager && (
+            {isManager && hasSchedules && (
               <div className="flex flex-wrap items-center gap-2">
                 {activeSchedule.status === 'draft' && (
                   <button
-                    onClick={() => updateScheduleStatus(currentWeekId, 'registration_open')}
+                    onClick={() => void handleScheduleStatus('registration_open')}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                   >
                     <LockOpen size={14} />
@@ -883,7 +984,7 @@ function App() {
                 )}
                 {activeSchedule.status === 'registration_open' && (
                   <button
-                    onClick={() => updateScheduleStatus(currentWeekId, 'registration_locked')}
+                    onClick={() => void handleScheduleStatus('registration_locked')}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c00000] hover:bg-red-800 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                   >
                     <Lock size={14} />
@@ -892,7 +993,7 @@ function App() {
                 )}
                 {activeSchedule.status === 'registration_locked' && (
                   <button
-                    onClick={() => updateScheduleStatus(currentWeekId, 'scheduling')}
+                    onClick={() => void handleScheduleStatus('scheduling')}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                   >
                     <Calendar size={14} />
@@ -901,10 +1002,7 @@ function App() {
                 )}
                 {(activeSchedule.status === 'scheduling' || activeSchedule.status === 'registration_locked') && (
                   <button
-                    onClick={() => {
-                      updateScheduleStatus(currentWeekId, 'published');
-                      alert('Đã công bố lịch tuần thành công cho toàn thể nhân sự!');
-                    }}
+                    onClick={() => void handleScheduleStatus('published')}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
                   >
                     <PaperPlane size={14} />
@@ -913,7 +1011,7 @@ function App() {
                 )}
                 {activeSchedule.status === 'published' && (
                   <button
-                    onClick={() => updateScheduleStatus(currentWeekId, 'scheduling')}
+                    onClick={() => void handleScheduleStatus('scheduling')}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-xs font-bold border border-zinc-300 rounded-lg transition-colors"
                   >
                     <LockOpen size={14} />
@@ -935,7 +1033,15 @@ function App() {
           {/* 3. Screen View Decider */}
           {activeTab === 'schedule' ? (
             <div>
-              {isManager ? (
+              {!hasSchedules ? (
+                <div className="bg-white border border-zinc-200 rounded-xl p-8 text-center text-xs text-zinc-500 max-w-xl mx-auto shadow-sm my-12">
+                  <Calendar size={36} className="text-amber-500 mx-auto mb-2" />
+                  <h3 className="font-extrabold text-zinc-800 text-sm mb-1">Chưa Có Lịch Tuần</h3>
+                  {isManager
+                    ? 'Bấm "Tạo lịch tuần mới" để khởi tạo tuần ISO đầu tiên từ backend.'
+                    : 'Hiện chưa có lịch tuần nào được công bố hoặc mở đăng ký.'}
+                </div>
+              ) : isManager ? (
                 /* ==================== MANAGER SCHEDULING SCREEN ==================== */
                 <div className="space-y-4">
                   {/* Excel-style schedule grid */}
@@ -1021,7 +1127,7 @@ function App() {
                         <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
                           <div>
                             <h2 className="text-sm font-extrabold text-zinc-900 m-0">Đăng Ký Nguyện Vọng Tuần Sau</h2>
-                            <p className="text-xs text-zinc-500">Hạn cuối đăng ký: Thứ Năm hàng tuần</p>
+                            <p className="text-xs text-zinc-500">Hạn cuối đăng ký: {registrationDeadlineText}</p>
                           </div>
                           
                           {activeSchedule.status !== 'registration_open' && (
@@ -1128,10 +1234,11 @@ function App() {
 
                             <button
                               type="submit"
-                              className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#f4b084] hover:bg-[#e29d71] text-zinc-950 font-extrabold rounded-xl text-xs transition-colors shadow-sm"
+                              disabled={preferenceSubmitting}
+                              className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#f4b084] hover:bg-[#e29d71] disabled:bg-zinc-200 disabled:text-zinc-500 disabled:cursor-not-allowed text-zinc-950 font-extrabold rounded-xl text-xs transition-colors shadow-sm"
                             >
                               <Check size={16} weight="bold" />
-                              Gửi Đăng Ký Nguyện Vọng
+                              {preferenceSubmitting ? 'Đang lưu nguyện vọng...' : 'Gửi Đăng Ký Nguyện Vọng'}
                             </button>
                           </form>
                         ) : (
@@ -1597,6 +1704,36 @@ function App() {
         onSubmit={handleSaveShift}
         isSubmitting={catalogSubmitting}
       />
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2.5 max-w-sm w-full no-print">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            onClick={() => dismissToast(toast.id)}
+            className={`p-3.5 rounded-xl shadow-lg border text-xs font-bold flex items-center justify-between gap-3 cursor-pointer transition-all duration-300 animate-slide-in-right ${
+              toast.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : toast.type === 'error'
+                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                : toast.type === 'warning'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-blue-50 text-blue-800 border-blue-200'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {toast.type === 'success' && <Check size={16} className="text-emerald-600 shrink-0" />}
+              {toast.type === 'error' && <Warning size={16} className="text-rose-600 shrink-0" />}
+              {toast.type === 'warning' && <Warning size={16} className="text-amber-600 shrink-0" />}
+              {toast.type === 'info' && <Calendar size={16} className="text-blue-600 shrink-0" />}
+              <span>{toast.message}</span>
+            </div>
+            <button className="text-zinc-400 hover:text-zinc-650 shrink-0">
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
 
     </div>
   );

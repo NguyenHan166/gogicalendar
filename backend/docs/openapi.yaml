@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: GogiCalendar API
-  version: 0.3.0
-  description: Phase 3 API contract with authentication, employees, and shift codes implemented.
+  version: 0.6.0
+  description: Phase 6 API contract with authentication, employees, shift codes, weekly schedule lifecycle, preferences, assignments, forecast, and staffing summary implemented.
 servers:
   - url: http://localhost:3000/api
     description: Local development
@@ -387,6 +387,7 @@ paths:
     get:
       tags: [Schedules]
       operationId: listSchedules
+      description: Managers can list every schedule. Employees see published weeks and registration-open weeks only.
       security:
         - bearerAuth: []
       parameters:
@@ -417,6 +418,7 @@ paths:
     post:
       tags: [Schedules]
       operationId: createSchedule
+      description: Manager-only create by Monday startDate. The API derives endDate and ISO weekId.
       security:
         - bearerAuth: []
       requestBody:
@@ -437,6 +439,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ScheduleSuccess'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
@@ -445,6 +449,7 @@ paths:
     post:
       tags: [Schedules]
       operationId: createNextSchedule
+      description: Manager-only create the next ISO week after the latest stored week.
       security:
         - bearerAuth: []
       requestBody:
@@ -471,6 +476,7 @@ paths:
     get:
       tags: [Schedules]
       operationId: getSchedule
+      description: Returns a frontend-compatible DTO projected according to caller visibility.
       security:
         - bearerAuth: []
       parameters:
@@ -488,6 +494,7 @@ paths:
     patch:
       tags: [Schedules]
       operationId: updateScheduleStatus
+      description: Manager-only state-machine transition using optimistic version checks.
       security:
         - bearerAuth: []
       parameters:
@@ -507,6 +514,8 @@ paths:
                 $ref: '#/components/schemas/ScheduleSuccess'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
   /schedules/{weekId}/preferences/me:
@@ -774,11 +783,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [success, data]
-                properties:
-                  success: { const: true }
-                  data: { type: object, additionalProperties: true }
+                $ref: '#/components/schemas/StaffingSummarySuccess'
         '403':
           $ref: '#/components/responses/Forbidden'
   /schedules/{weekId}/validate:
@@ -1263,6 +1268,11 @@ components:
           type: object
           additionalProperties:
             $ref: '#/components/schemas/DayPreference'
+        submittedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        overriddenByEmployeeId: { type: string }
+        overrideReason: { type: string, maxLength: 500 }
+        version: { type: integer, minimum: 0 }
     PreferenceWrite:
       type: object
       additionalProperties: false
@@ -1271,15 +1281,35 @@ components:
         version: { type: integer, minimum: 0 }
         dayPreferences:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/DayPreference'
-    PreferenceOverride:
-      allOf:
-        - $ref: '#/components/schemas/PreferenceWrite'
-        - type: object
-          required: [reason]
+          additionalProperties: false
+          required: [Thứ 2, Thứ 3, Thứ 4, Thứ 5, Thứ 6, Thứ 7, Chủ Nhật]
           properties:
-            reason: { type: string, minLength: 1, maxLength: 500 }
+            Thứ 2: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 3: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 4: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 5: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 6: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 7: { $ref: '#/components/schemas/DayPreference' }
+            Chủ Nhật: { $ref: '#/components/schemas/DayPreference' }
+    PreferenceOverride:
+      type: object
+      additionalProperties: false
+      required: [version, dayPreferences, reason]
+      properties:
+        version: { type: integer, minimum: 0 }
+        dayPreferences:
+          type: object
+          additionalProperties: false
+          required: [Thứ 2, Thứ 3, Thứ 4, Thứ 5, Thứ 6, Thứ 7, Chủ Nhật]
+          properties:
+            Thứ 2: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 3: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 4: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 5: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 6: { $ref: '#/components/schemas/DayPreference' }
+            Thứ 7: { $ref: '#/components/schemas/DayPreference' }
+            Chủ Nhật: { $ref: '#/components/schemas/DayPreference' }
+        reason: { type: string, minLength: 1, maxLength: 500 }
     PreferenceSuccess:
       type: object
       required: [success, data]
@@ -1404,6 +1434,7 @@ components:
         employeeId: { type: string }
         day: { $ref: '#/components/schemas/DayLabel' }
         role: { type: string }
+        assignmentId: { type: string }
     ScheduleMutationSuccess:
       type: object
       required: [success, data]
@@ -1433,6 +1464,42 @@ components:
             warnings:
               type: array
               items: { $ref: '#/components/schemas/Warning' }
+    StaffingStatus:
+      type: string
+      enum: [understaffed, balanced, overstaffed]
+    StaffingCell:
+      type: object
+      required: [target, actual, variance, status]
+      properties:
+        target: { type: integer, minimum: 0 }
+        actual: { type: integer, minimum: 0 }
+        variance: { type: integer }
+        status: { $ref: '#/components/schemas/StaffingStatus' }
+        slots:
+          type: object
+          additionalProperties:
+            type: object
+            required: [target, actual, variance, status]
+            properties:
+              target: { type: integer, minimum: 0 }
+              actual: { type: integer, minimum: 0 }
+              variance: { type: integer }
+              status: { $ref: '#/components/schemas/StaffingStatus' }
+    StaffingSummarySuccess:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [days]
+          properties:
+            days:
+              type: object
+              additionalProperties:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/StaffingCell'
     AuditLog:
       type: object
       required: [action, resourceType, outcome, createdAt]

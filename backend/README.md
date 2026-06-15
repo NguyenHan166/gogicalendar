@@ -2,9 +2,10 @@
 
 Express.js, TypeScript, MongoDB, and Mongoose backend for GogiCalendar.
 
-Phase 3 provides the application foundation, authentication, role-based
-authorization, and the employee and shift-code APIs. Schedule business endpoints
-are implemented in later phases.
+Phase 7 provides the application foundation, authentication, role-based
+authorization, employee and shift-code APIs, weekly schedule lifecycle APIs, and
+employee schedule-preference APIs. Assignment, forecast, staffing-summary, and
+schedule validation APIs are implemented and integrated with the frontend store.
 
 ## Requirements
 
@@ -60,8 +61,9 @@ Expected responses:
 
 ## Frontend integration
 
-The frontend authentication screens call the Phase 2 endpoints directly. For local
-development, start both applications:
+The frontend uses the Express API for authentication, employees, shifts,
+schedules, status transitions, preferences, assignments, and forecast mutations.
+For local development, start both applications:
 
 ```bash
 # terminal 1
@@ -79,8 +81,9 @@ is required locally. For a separately hosted backend, set
 add the frontend origin to backend `CORS_ORIGINS`.
 
 The frontend keeps the JWT access token in memory and restores sessions through the
-HttpOnly refresh cookie. Employee and shift screens now use these backend APIs.
-Schedule integration remains work for later phases.
+HttpOnly refresh cookie. Versioned schedule mutations return
+`409 VERSION_CONFLICT` when a stale client writes; the frontend refetches schedule
+data before allowing the user to continue.
 
 ### Existing JSON imports
 
@@ -275,6 +278,77 @@ second interval.
 
 Shift records are deactivated through `PATCH /api/shifts/:code/status`. There is
 no hard-delete endpoint because assignments and preferences reference shift codes.
+
+## Weekly schedules
+
+Managers can create weeks with `POST /api/schedules`, create the next ISO week
+with `POST /api/schedules/create-next`, list schedules, read details, and move a
+week through the state machine with `PATCH /api/schedules/:weekId/status`.
+
+`GET /api/schedules` supports `page`, `limit`, `status`, `year`, `from`, and
+`to`. Weeks must start on Monday and always end on Sunday. The backend derives
+`weekId` using ISO week rules, including week 53 and year boundaries.
+
+Status changes require the current `version`. Concurrent writes return
+`409 VERSION_CONFLICT`; invalid state-machine moves return
+`409 INVALID_STATUS_TRANSITION`. Schedule creation and status transitions create
+`AuditLog` entries.
+
+Employees can read published schedules. During `registration_open`, employees can
+read schedule metadata and their own preference projection, but unpublished
+assignments remain hidden.
+
+## Schedule preferences
+
+Employees use `GET /api/schedules/:weekId/preferences/me` and
+`PUT /api/schedules/:weekId/preferences/me` to read and replace their own
+seven-day preference set. Employee writes are accepted only while the schedule is
+`registration_open`.
+
+Preference writes require the current schedule `version`. The backend performs an
+atomic upsert inside the weekly schedule document and increments the version;
+stale writes return `409 VERSION_CONFLICT`. Each day must be one of
+`available`, `preferred`, or `unavailable`. When a day is `preferred`,
+`preferredShift` is required and must reference an active `work` shift code.
+Notes are trimmed and limited to 500 characters.
+
+Managers use `GET /api/schedules/:weekId/preferences` to view the preference
+board with optional `department`, `skill`, `submitted`, and `type` filters.
+`PUT /api/schedules/:weekId/preferences/:employeeId` lets managers override an
+employee preference with a required reason and writes a
+`schedule.preference.override` audit log entry.
+
+## Assignments, forecast, and staffing
+
+Managers can replace, create, update, and delete assignments with:
+
+- `PUT /api/schedules/:weekId/assignments`
+- `POST /api/schedules/:weekId/assignments`
+- `PATCH /api/schedules/:weekId/assignments/:assignmentId`
+- `DELETE /api/schedules/:weekId/assignments/:assignmentId?version=...`
+
+Assignment writes require the current schedule `version` and are accepted only
+when the schedule is `registration_locked`, `scheduling`, or `published`. The
+first assignment or forecast edit from `registration_locked` automatically moves
+the schedule to `scheduling` and writes an audit log. Edits on a `published`
+schedule also create audit entries.
+
+The backend validates active employees, active shift codes, day labels inside the
+week, and duplicate employee/day assignments. Skill mismatches do not block the
+write; they are returned as warnings and are also reported by
+`POST /api/schedules/:weekId/validate`.
+
+Forecast targets use the MVP DTO `{ [dayLabel]: { [department]: number } }` via
+`PUT /api/schedules/:weekId/forecast`. Targets are integers greater than or equal
+to zero and are stored in an extensible target array that can later include time
+slots without changing the current API.
+
+`GET /api/schedules/:weekId/staffing-summary` returns target, actual, variance,
+and status per day and department. Add repeatable `slot=HH:mm-HH:mm` query
+parameters to calculate slot-level actual staffing. Work shifts count only when
+they overlap the slot with half-open interval logic; overnight and split shifts
+are supported, while `off` and `leave` shift types are excluded from actual
+staffing.
 
 ## Commands
 

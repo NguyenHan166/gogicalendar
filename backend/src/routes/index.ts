@@ -7,6 +7,7 @@ import type { AuthService } from '../modules/auth/auth.types.js';
 import { createEmployeeRouter } from '../modules/employees/employee.routes.js';
 import { createHealthRouter } from '../modules/health/health.routes.js';
 import type { HealthService } from '../modules/health/health.service.js';
+import { createScheduleRouter } from '../modules/schedules/schedule.routes.js';
 import { createShiftRouter } from '../modules/shifts/shift.routes.js';
 
 export interface ApiRouterDependencies {
@@ -27,5 +28,6 @@ export function createApiRouter(dependencies: ApiRouterDependencies = {}): Route
   );
   router.use(createEmployeeRouter(authService));
   router.use(createShiftRouter(authService));
+  router.use(createScheduleRouter(authService));
   return router;
 }

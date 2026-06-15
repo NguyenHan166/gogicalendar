@@ -5,10 +5,12 @@ import { MagnifyingGlass, X, Check, FileXls } from '@phosphor-icons/react';
 import * as XLSX from 'xlsx-js-style';
 
 export function ExcelScheduleGrid() {
-  const { employees, shiftCodes, schedules, currentWeekId, addAssignment, removeAssignment, updateForecast, currentUser } = useScheduleStore();
+  const { employees, shiftCodes, schedules, currentWeekId, addAssignment, removeAssignment, updateForecast, currentUser, showToast } = useScheduleStore();
   const activeSchedule = schedules.find(s => s.weekId === currentWeekId) || schedules[0];
   const isManager = currentUser?.role === 'manager';
-  const isEditable = isManager && activeSchedule.status !== 'published';
+  const isEditable =
+    isManager &&
+    ['registration_locked', 'scheduling', 'published'].includes(activeSchedule.status);
 
   const [copyToast, setCopyToast] = useState<string | null>(null);
 
@@ -134,7 +136,7 @@ export function ExcelScheduleGrid() {
       newForecast[day] = {};
     }
     newForecast[day][group] = value;
-    updateForecast(currentWeekId, newForecast);
+    void updateForecast(currentWeekId, newForecast);
   };
 
   const exportToExcel = () => {
@@ -441,6 +443,7 @@ export function ExcelScheduleGrid() {
 
     XLSX.utils.book_append_sheet(wb, ws, `Lich Tuần ${weekNum}`);
     XLSX.writeFile(wb, `Lich_Roster_Tuan_${weekNum}.xlsx`);
+    showToast(`Đã xuất file Excel ca làm việc Tuần ${weekNum} thành công!`, 'success');
   };
 
   return (
@@ -793,11 +796,10 @@ export function ExcelScheduleGrid() {
                   <button
                     key={shortcut.code}
                     onClick={() => {
-                      if (pickerCell.currentCode) {
-                        removeAssignment(currentWeekId, pickerCell.day, pickerCell.empId);
-                      }
-                      if (shortcut.code) {
-                        addAssignment(currentWeekId, pickerCell.day, {
+                      if (!shortcut.code) {
+                        void removeAssignment(currentWeekId, pickerCell.day, pickerCell.empId);
+                      } else {
+                        void addAssignment(currentWeekId, pickerCell.day, {
                           employeeId: pickerCell.empId,
                           shiftCode: shortcut.code,
                           primaryRole: pickerCell.dept,
@@ -894,10 +896,7 @@ export function ExcelScheduleGrid() {
                   <button
                     key={shift.code}
                     onClick={() => {
-                      if (pickerCell.currentCode) {
-                        removeAssignment(currentWeekId, pickerCell.day, pickerCell.empId);
-                      }
-                      addAssignment(currentWeekId, pickerCell.day, {
+                      void addAssignment(currentWeekId, pickerCell.day, {
                         employeeId: pickerCell.empId,
                         shiftCode: shift.code,
                         primaryRole: pickerCell.dept,

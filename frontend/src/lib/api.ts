@@ -1,4 +1,10 @@
-import type { Employee, ShiftCode } from '../data/mockData';
+import type {
+  Employee,
+  EmployeePreference,
+  ShiftAssignment,
+  ShiftCode,
+  WeeklySchedule,
+} from '../data/mockData';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 
@@ -29,6 +35,30 @@ interface PaginatedSuccessResponse<T> extends SuccessResponse<T[]> {
     limit: number;
     total: number;
     totalPages: number;
+  };
+}
+
+export interface ScheduleWarning {
+  code: string;
+  message: string;
+  employeeId?: string;
+  day?: string;
+  role?: string;
+  assignmentId?: string;
+}
+
+export interface ScheduleMutationResult {
+  schedule: WeeklySchedule;
+  warnings: ScheduleWarning[];
+}
+
+function assignmentWritePayload(assignment: ShiftAssignment) {
+  return {
+    employeeId: assignment.employeeId,
+    shiftCode: assignment.shiftCode,
+    primaryRole: assignment.primaryRole,
+    ...(assignment.secondaryRole ? { secondaryRole: assignment.secondaryRole } : {}),
+    ...(assignment.note ? { note: assignment.note } : {}),
   };
 }
 
@@ -178,12 +208,13 @@ async function apiRequestPage<T>(
 }
 
 async function fetchAllPages<T>(path: string): Promise<T[]> {
-  const first = await apiRequestPage<T>(`${path}?page=1&limit=100`);
+  const separator = path.includes('?') ? '&' : '?';
+  const first = await apiRequestPage<T>(`${path}${separator}page=1&limit=100`);
   if (first.meta.totalPages <= 1) return first.data;
 
   const remaining = await Promise.all(
     Array.from({ length: first.meta.totalPages - 1 }, (_, index) =>
-      apiRequestPage<T>(`${path}?page=${index + 2}&limit=100`),
+      apiRequestPage<T>(`${path}${separator}page=${index + 2}&limit=100`),
     ),
   );
   return [...first.data, ...remaining.flatMap((page) => page.data)];
@@ -302,6 +333,149 @@ export const shiftApi = {
     return apiRequest<ShiftCode>(`/api/shifts/${encodeURIComponent(code)}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+    });
+  },
+};
+
+export const scheduleApi = {
+  list(): Promise<WeeklySchedule[]> {
+    return fetchAllPages<WeeklySchedule>('/api/schedules');
+  },
+
+  get(weekId: string): Promise<WeeklySchedule> {
+    return apiRequest<WeeklySchedule>(`/api/schedules/${encodeURIComponent(weekId)}`);
+  },
+
+  createNext(): Promise<WeeklySchedule> {
+    return apiRequest<WeeklySchedule>('/api/schedules/create-next', {
+      method: 'POST',
+      body: '{}',
+    });
+  },
+
+  updateStatus(
+    weekId: string,
+    status: WeeklySchedule['status'],
+    version: number,
+  ): Promise<WeeklySchedule> {
+    return apiRequest<WeeklySchedule>(`/api/schedules/${encodeURIComponent(weekId)}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, version }),
+    });
+  },
+
+  getMyPreference(weekId: string): Promise<EmployeePreference | null> {
+    return apiRequest<EmployeePreference | null>(
+      `/api/schedules/${encodeURIComponent(weekId)}/preferences/me`,
+    );
+  },
+
+  updateMyPreference(
+    weekId: string,
+    version: number,
+    dayPreferences: EmployeePreference['dayPreferences'],
+  ): Promise<WeeklySchedule> {
+    return apiRequest<WeeklySchedule>(
+      `/api/schedules/${encodeURIComponent(weekId)}/preferences/me`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ version, dayPreferences }),
+      },
+    );
+  },
+
+  listPreferences(weekId: string): Promise<EmployeePreference[]> {
+    return apiRequest<EmployeePreference[]>(
+      `/api/schedules/${encodeURIComponent(weekId)}/preferences`,
+    );
+  },
+
+  overridePreference(
+    weekId: string,
+    employeeId: string,
+    version: number,
+    dayPreferences: EmployeePreference['dayPreferences'],
+    reason: string,
+  ): Promise<WeeklySchedule> {
+    return apiRequest<WeeklySchedule>(
+      `/api/schedules/${encodeURIComponent(weekId)}/preferences/${encodeURIComponent(employeeId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ version, dayPreferences, reason }),
+      },
+    );
+  },
+
+  replaceAssignments(
+    weekId: string,
+    version: number,
+    assignments: WeeklySchedule['assignments'],
+  ): Promise<ScheduleMutationResult> {
+    return apiRequest<ScheduleMutationResult>(
+      `/api/schedules/${encodeURIComponent(weekId)}/assignments`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ version, assignments }),
+      },
+    );
+  },
+
+  createAssignment(
+    weekId: string,
+    version: number,
+    day: string,
+    assignment: ShiftAssignment,
+  ): Promise<ScheduleMutationResult> {
+    return apiRequest<ScheduleMutationResult>(
+      `/api/schedules/${encodeURIComponent(weekId)}/assignments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ version, day, assignment: assignmentWritePayload(assignment) }),
+      },
+    );
+  },
+
+  updateAssignment(
+    weekId: string,
+    assignmentId: string,
+    version: number,
+    updates: Partial<ShiftAssignment> & { day?: string },
+  ): Promise<ScheduleMutationResult> {
+    const payload = {
+      ...(updates.day ? { day: updates.day } : {}),
+      ...(updates.shiftCode ? { shiftCode: updates.shiftCode } : {}),
+      ...(updates.primaryRole ? { primaryRole: updates.primaryRole } : {}),
+      ...(updates.secondaryRole !== undefined ? { secondaryRole: updates.secondaryRole } : {}),
+      ...(updates.note !== undefined ? { note: updates.note } : {}),
+    };
+    return apiRequest<ScheduleMutationResult>(
+      `/api/schedules/${encodeURIComponent(weekId)}/assignments/${encodeURIComponent(assignmentId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ version, ...payload }),
+      },
+    );
+  },
+
+  deleteAssignment(
+    weekId: string,
+    assignmentId: string,
+    version: number,
+  ): Promise<ScheduleMutationResult> {
+    return apiRequest<ScheduleMutationResult>(
+      `/api/schedules/${encodeURIComponent(weekId)}/assignments/${encodeURIComponent(assignmentId)}?version=${encodeURIComponent(String(version))}`,
+      { method: 'DELETE' },
+    );
+  },
+
+  updateForecast(
+    weekId: string,
+    version: number,
+    forecast: WeeklySchedule['forecast'],
+  ): Promise<WeeklySchedule> {
+    return apiRequest<WeeklySchedule>(`/api/schedules/${encodeURIComponent(weekId)}/forecast`, {
+      method: 'PUT',
+      body: JSON.stringify({ version, forecast }),
     });
   },
 };
