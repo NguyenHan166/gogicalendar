@@ -1151,7 +1151,43 @@ components:
           items: { type: string }
         status: { $ref: '#/components/schemas/EmployeeStatus' }
     ShiftWrite:
-      $ref: '#/components/schemas/Shift'
+      type: object
+      additionalProperties: false
+      required: [code, name, type, color]
+      properties:
+        code: { type: string, maxLength: 30 }
+        name: { type: string, maxLength: 200 }
+        startTime:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - const: ''
+          default: ''
+        endTime:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - const: ''
+          default: ''
+        breakMinutes: { type: integer, minimum: 0, default: 0 }
+        type: { $ref: '#/components/schemas/ShiftType' }
+        color: { type: string, maxLength: 50 }
+        note: { type: string, maxLength: 1000 }
+        isSplit: { type: boolean, default: false }
+        startTime2:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        endTime2:
+          oneOf:
+            - $ref: '#/components/schemas/Time'
+            - type: 'null'
+        applicableDepartments:
+          type: array
+          default: []
+          items: { type: string }
+        status:
+          allOf:
+            - $ref: '#/components/schemas/EmployeeStatus'
+          default: active
     ShiftUpdate:
       type: object
       additionalProperties: false

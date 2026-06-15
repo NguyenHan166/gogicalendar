@@ -44,6 +44,7 @@ export const employeeCreateSchema = z
 export const employeeUpdateSchema = z
   .object({
     ...employeeFields,
+    status: z.enum(EMPLOYEE_STATUSES),
   })
   .strict();
 

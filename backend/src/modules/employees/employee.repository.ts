@@ -16,6 +16,10 @@ function formattedPhoneRegex(phone: string): RegExp {
   return new RegExp(`^${phone.split('').map(escapeRegex).join('\\D*')}$`);
 }
 
+function formattedPhoneSearchRegex(phone: string): RegExp {
+  return new RegExp(phone.split('').map(escapeRegex).join('\\D*'));
+}
+
 export class EmployeeRepository {
   public async create(employeeId: string, input: EmployeeCreateInput): Promise<Employee> {
     return (
@@ -64,7 +68,7 @@ export class EmployeeRepository {
       filter.$or = [
         { name: search },
         { employeeId: search },
-        { phone: normalizedPhone ? formattedPhoneRegex(normalizedPhone) : search },
+        { phone: normalizedPhone ? formattedPhoneSearchRegex(normalizedPhone) : search },
       ];
     }
 

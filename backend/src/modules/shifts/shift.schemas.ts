@@ -59,6 +59,12 @@ export const shiftCreateSchema = z
 export const shiftUpdateSchema = z
   .object({
     ...shiftFields,
+    startTime: z.union([timeSchema, z.literal('')]),
+    endTime: z.union([timeSchema, z.literal('')]),
+    breakMinutes: z.number().int().min(0),
+    isSplit: z.boolean(),
+    applicableDepartments: z.array(trimmedText(100)).max(100),
+    status: z.enum(EMPLOYEE_STATUSES),
   })
   .strict()
   .superRefine(validateIntervals);

@@ -199,6 +199,21 @@ describe('employee and shift modules', () => {
       .post('/api/employees')
       .set('authorization', `Bearer ${token}`)
       .send({ ...employeePayload, id: 'E101', phone: '0901222333' });
+    await EmployeeModel.collection.insertOne({
+      employeeId: 'LEGACY',
+      name: 'Legacy Employee',
+      phone: '0901.555.666',
+      role: 'employee',
+      level: 'L1',
+      scheduleGroup: 'FOH',
+      primaryDepartment: 'Service',
+      skills: { Service: true },
+      status: 'active',
+    });
+    const legacyDuplicate = await request(app)
+      .post('/api/employees')
+      .set('authorization', `Bearer ${token}`)
+      .send({ ...employeePayload, id: 'E102', phone: '0901555666' });
     const hub = await request(app)
       .post('/api/employees')
       .set('authorization', `Bearer ${token}`)
@@ -210,6 +225,7 @@ describe('employee and shift modules', () => {
     expect((duplicate.body as { error: { code: string } }).error.code).toBe(
       'EMPLOYEE_PHONE_EXISTS',
     );
+    expect(legacyDuplicate.status).toBe(409);
     expect(hub.status).toBe(201);
     expect((hub.body as { data: { id: string } }).data.id).toMatch(/^HUB_\d+_[a-f0-9]{6}$/);
   });
