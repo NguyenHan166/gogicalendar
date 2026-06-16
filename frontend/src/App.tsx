@@ -12,8 +12,6 @@ import {
   Clock, 
   Check, 
   Lock, 
-  LockOpen, 
-  PaperPlane, 
   UserGear,
   Warning,
   Printer,
@@ -63,7 +61,9 @@ function App() {
   const [catalogSubmitting, setCatalogSubmitting] = useState(false);
   const [preferenceSubmitting, setPreferenceSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'schedule' | 'settings'>('schedule');
-  const [empScheduleTab, setEmpScheduleTab] = useState<'personal' | 'general'>('personal');
+  const [empScheduleTab, setEmpScheduleTab] = useState<'personal' | 'general' | 'shifts'>('personal');
+  const [empShiftSearch, setEmpShiftSearch] = useState('');
+  const [empShiftFilter, setEmpShiftFilter] = useState<'all' | 'FOH' | 'BOH'>('all');
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
@@ -276,6 +276,7 @@ function App() {
   // Employee CRUD Form Modal States
   const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
   const [empFormMode, setEmpFormMode] = useState<'add' | 'edit'>('add');
+  const [editingEmpId, setEditingEmpId] = useState<string | null>(null);
   const [empForm, setEmpForm] = useState<Employee>({
     id: '',
     name: '',
@@ -479,6 +480,7 @@ function App() {
   // Open Add Employee
   const openAddEmployee = () => {
     setEmpFormMode('add');
+    setEditingEmpId(null);
     setEmpForm({
       id: '',
       name: '',
@@ -497,6 +499,7 @@ function App() {
   // Open Edit Employee
   const openEditEmployee = (emp: Employee) => {
     setEmpFormMode('edit');
+    setEditingEmpId(emp.id);
     setEmpForm({ ...emp });
     setEmployeeModalOpen(true);
   };
@@ -549,7 +552,7 @@ function App() {
       if (empFormMode === 'add') {
         await addEmployee(finalEmp);
       } else {
-        await updateEmployee(finalEmp);
+        await updateEmployee(editingEmpId || finalEmp.id, finalEmp);
       }
       setEmployeeModalOpen(false);
     } catch {
@@ -973,51 +976,36 @@ function App() {
             {/* Manager Actions for Week Status */}
             {isManager && hasSchedules && (
               <div className="flex flex-wrap items-center gap-2">
-                {activeSchedule.status === 'draft' && (
-                  <button
-                    onClick={() => void handleScheduleStatus('registration_open')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                  >
-                    <LockOpen size={14} />
-                    Mở đăng ký nguyện vọng
-                  </button>
-                )}
-                {activeSchedule.status === 'registration_open' && (
-                  <button
-                    onClick={() => void handleScheduleStatus('registration_locked')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c00000] hover:bg-red-800 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                  >
-                    <Lock size={14} />
-                    Khóa cổng đăng ký
-                  </button>
-                )}
-                {activeSchedule.status === 'registration_locked' && (
-                  <button
-                    onClick={() => void handleScheduleStatus('scheduling')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                  >
-                    <Calendar size={14} />
-                    Bắt đầu xếp lịch
-                  </button>
-                )}
-                {(activeSchedule.status === 'scheduling' || activeSchedule.status === 'registration_locked') && (
-                  <button
-                    onClick={() => void handleScheduleStatus('published')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
-                  >
-                    <PaperPlane size={14} />
-                    Công bố lịch roster
-                  </button>
-                )}
-                {activeSchedule.status === 'published' && (
-                  <button
-                    onClick={() => void handleScheduleStatus('scheduling')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-xs font-bold border border-zinc-300 rounded-lg transition-colors"
-                  >
-                    <LockOpen size={14} />
-                    Mở lại xếp lịch (Sửa)
-                  </button>
-                )}
+                <div className="flex flex-wrap items-center gap-1.5 bg-zinc-150 p-1 rounded-xl border border-zinc-200 shadow-sm">
+                  <span className="text-zinc-500 text-[10px] font-black uppercase px-2">Trạng thái tuần:</span>
+                  {[
+                    { status: 'draft', label: 'Nháp', colorClass: 'bg-zinc-600 text-white hover:bg-zinc-700' },
+                    { status: 'registration_open', label: 'Mở Đăng Ký', colorClass: 'bg-emerald-600 text-white hover:bg-emerald-700' },
+                    { status: 'registration_locked', label: 'Khóa Đăng Ký', colorClass: 'bg-rose-600 text-white hover:bg-rose-700' },
+                    { status: 'scheduling', label: 'Xếp Lịch', colorClass: 'bg-amber-600 text-white hover:bg-amber-700' },
+                    { status: 'published', label: 'Công Bố', colorClass: 'bg-blue-600 text-white hover:bg-blue-700' }
+                  ].map((item) => {
+                    const isActive = activeSchedule.status === item.status;
+                    return (
+                      <button
+                        key={item.status}
+                        onClick={() => {
+                          if (isActive) return;
+                          if (window.confirm(`Bạn có chắc chắn muốn chuyển trạng thái tuần sang "${getStatusText(item.status)}"?`)) {
+                            void handleScheduleStatus(item.status as any);
+                          }
+                        }}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                          isActive 
+                            ? `${item.colorClass} shadow-sm scale-102` 
+                            : 'text-zinc-650 hover:bg-zinc-200 hover:text-zinc-950'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 <button
                   onClick={() => window.print()}
@@ -1073,10 +1061,20 @@ function App() {
                       >
                         Lịch tổng cả nhà hàng
                       </button>
+                      <button
+                        onClick={() => setEmpScheduleTab('shifts')}
+                        className={`px-4 py-2 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+                          empScheduleTab === 'shifts'
+                            ? 'border-[#c00000] text-[#c00000]'
+                            : 'border-transparent text-zinc-500 hover:text-zinc-800'
+                        }`}
+                      >
+                        Danh mục ca
+                      </button>
                     </div>
                   </div>
 
-                  {empScheduleTab === 'personal' ? (
+                  {empScheduleTab === 'personal' && (
                     <div className="max-w-2xl mx-auto space-y-6">
                       
                       {/* 1. View Schedule week (if published) */}
@@ -1250,7 +1248,9 @@ function App() {
 
                       </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {empScheduleTab === 'general' && (
                     /* General master schedule view */
                     <div className="space-y-4">
                       {activeSchedule.status === 'published' ? (
@@ -1269,6 +1269,130 @@ function App() {
                           </p>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {empScheduleTab === 'shifts' && (
+                    <div className="max-w-4xl mx-auto space-y-6">
+                      <div className="bg-white border border-zinc-200 rounded-xl p-6 space-y-6 shadow-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+                          <div>
+                            <h2 className="text-sm font-extrabold text-zinc-900 m-0 uppercase">Danh Mục Ca Làm Việc</h2>
+                            <p className="text-xs text-zinc-500">Danh sách các ca đang áp dụng tại nhà hàng để tham khảo khi đăng ký nguyện vọng</p>
+                          </div>
+                        </div>
+
+                        {/* Search and Filters */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="relative">
+                            <span className="absolute left-3 top-2.5 text-zinc-400">
+                              <MagnifyingGlass size={16} />
+                            </span>
+                            <input
+                              type="text"
+                              placeholder="Tìm mã ca hoặc tên ca..."
+                              value={empShiftSearch}
+                              onChange={(e) => setEmpShiftSearch(e.target.value)}
+                              className="w-full bg-zinc-50 border border-zinc-200 text-zinc-900 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:bg-white focus:border-[#f4b084] transition-all font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <select
+                              value={empShiftFilter}
+                              onChange={(e) => setEmpShiftFilter(e.target.value as any)}
+                              className="w-full bg-zinc-50 border border-zinc-200 text-zinc-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:bg-white focus:border-[#f4b084] transition-all font-semibold"
+                            >
+                              <option value="all">Tất cả phòng ban</option>
+                              <option value="FOH">FOH (Sảnh / Bar / Phục vụ)</option>
+                              <option value="BOH">BOH (Bếp / Rửa bát)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Grid of Shift Cards */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {shiftCodes
+                            .filter(s => s.status !== 'inactive' && s.type === 'work')
+                            .filter(s => {
+                              if (!empShiftSearch.trim()) return true;
+                              return s.code.toLowerCase().includes(empShiftSearch.toLowerCase()) ||
+                                     s.name.toLowerCase().includes(empShiftSearch.toLowerCase());
+                            })
+                            .filter(s => {
+                              if (empShiftFilter === 'all') return true;
+                              return s.applicableDepartments?.includes(empShiftFilter);
+                            })
+                            .map((shift) => (
+                              <div 
+                                key={shift.code} 
+                                className="bg-white border border-zinc-200 rounded-xl p-4 flex flex-col justify-between hover:border-amber-400 transition-all hover:shadow-md relative overflow-hidden group"
+                              >
+                                {/* Background Accent based on shift type */}
+                                <div className={`absolute top-0 left-0 w-1 h-full ${
+                                  shift.isSplit ? 'bg-amber-500' : 'bg-blue-500'
+                                }`} />
+
+                                <div className="space-y-2.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className={`inline-block px-2.5 py-1 rounded text-xs font-black border ${getShiftColor(shift.code)}`}>
+                                      {shift.code}
+                                    </span>
+                                    {shift.isSplit && (
+                                      <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
+                                        Ca Gãy
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <h4 className="font-extrabold text-zinc-900 text-xs leading-snug">{shift.name}</h4>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {shift.applicableDepartments?.map(dept => (
+                                        <span key={dept} className="bg-zinc-100 text-zinc-600 text-[8px] font-extrabold px-1 py-0.2 rounded uppercase">
+                                          {dept}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1 bg-zinc-50 border border-zinc-100 p-2 rounded-lg text-[11px]">
+                                    <div className="flex items-center gap-1.5 text-zinc-700">
+                                      <Clock size={12} className="text-zinc-400 shrink-0" />
+                                      <span className="font-bold font-mono">
+                                        {shift.startTime} - {shift.endTime}
+                                      </span>
+                                    </div>
+                                    {shift.isSplit && (
+                                      <div className="flex items-center gap-1.5 text-zinc-700 pl-4 border-l border-zinc-200">
+                                        <span className="font-bold font-mono">
+                                          &amp; {shift.startTime2} - {shift.endTime2}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {shift.breakMinutes ? (
+                                      <div className="text-[10px] text-zinc-500 italic mt-0.5">
+                                        Thời gian nghỉ: {shift.breakMinutes} phút
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+
+                        {shiftCodes.filter(s => s.status !== 'inactive' && s.type === 'work').filter(s => {
+                          if (!empShiftSearch.trim()) return true;
+                          return s.code.toLowerCase().includes(empShiftSearch.toLowerCase()) ||
+                                 s.name.toLowerCase().includes(empShiftSearch.toLowerCase());
+                        }).filter(s => {
+                          if (empShiftFilter === 'all') return true;
+                          return s.applicableDepartments?.includes(empShiftFilter);
+                        }).length === 0 && (
+                          <div className="text-center py-8 text-zinc-400 text-xs">
+                            Không tìm thấy ca làm việc nào phù hợp.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

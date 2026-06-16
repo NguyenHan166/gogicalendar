@@ -303,7 +303,7 @@ describe('weekly schedules and state machine', () => {
       .patch('/api/schedules/2026-W25/status')
       .set('authorization', `Bearer ${token}`)
       .send({ status: 'registration_locked', version: 1 });
-    const invalid = await request(app)
+    const nowValid = await request(app)
       .patch('/api/schedules/2026-W25/status')
       .set('authorization', `Bearer ${token}`)
       .send({ status: 'published', version: 2 });
@@ -320,9 +320,12 @@ describe('weekly schedules and state machine', () => {
       status: 'registration_locked',
       version: 2,
     });
-    expect(invalid.status).toBe(409);
-    expect(invalid.body).toMatchObject({ error: { code: 'INVALID_STATUS_TRANSITION' } });
-    expect(await AuditLogModel.countDocuments({ action: 'schedule.status.transition' })).toBe(2);
+    expect(nowValid.status).toBe(200);
+    expect((nowValid.body as { data: { status: string; version: number } }).data).toMatchObject({
+      status: 'published',
+      version: 3,
+    });
+    expect(await AuditLogModel.countDocuments({ action: 'schedule.status.transition' })).toBe(3);
   });
 
   it('projects employee visibility without exposing unpublished assignments', async () => {

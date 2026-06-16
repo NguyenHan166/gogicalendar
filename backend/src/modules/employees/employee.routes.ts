@@ -16,7 +16,6 @@ export function createEmployeeRouter(authService: AuthService): Router {
   router.get(
     '/employees',
     authenticate(authService),
-    requireManager,
     asyncHandler(controller.list),
   );
   router.get(

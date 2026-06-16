@@ -115,7 +115,7 @@ describe('employee and shift modules', () => {
       .set('authorization', `Bearer ${token}`)
       .send(employeePayload);
 
-    expect(list.status).toBe(403);
+    expect(list.status).toBe(200);
     expect(self.status).toBe(200);
     expect(self.body).toMatchObject({ data: { id: 'E001', skills: { Service: true } } });
     expect(other.status).toBe(403);

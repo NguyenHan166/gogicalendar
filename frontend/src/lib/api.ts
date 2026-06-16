@@ -277,11 +277,14 @@ export const employeeApi = {
     });
   },
 
-  update(employee: Employee): Promise<Employee> {
+  update(oldId: string, employee: Employee): Promise<Employee> {
     const { id, ...fields } = employee;
-    return apiRequest<Employee>(`/api/employees/${encodeURIComponent(id)}`, {
+    return apiRequest<Employee>(`/api/employees/${encodeURIComponent(oldId)}`, {
       method: 'PUT',
-      body: JSON.stringify(fields),
+      body: JSON.stringify({
+        id,
+        ...fields,
+      }),
     });
   },
 

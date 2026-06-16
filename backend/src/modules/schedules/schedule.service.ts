@@ -127,11 +127,11 @@ export interface StaffingSummaryDto {
 }
 
 const allowedTransitions: Record<ScheduleStatus, ScheduleStatus[]> = {
-  draft: ['registration_open'],
-  registration_open: ['registration_locked'],
-  registration_locked: ['registration_open', 'scheduling'],
-  scheduling: ['published'],
-  published: ['scheduling'],
+  draft: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
+  registration_open: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
+  registration_locked: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
+  scheduling: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
+  published: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
 };
 
 function versionConflict(current?: WeeklySchedule | null): AppError {
@@ -283,7 +283,7 @@ export class ScheduleService {
                 ? { publishedAt: new Date(), publishedByEmployeeId: principal.employeeId }
                 : {}),
             },
-            ...(input.status === 'scheduling'
+            ...(input.status !== 'published'
               ? { $unset: { publishedAt: 1, publishedByEmployeeId: 1 } }
               : {}),
             $inc: { version: 1 },
@@ -869,11 +869,24 @@ export class ScheduleService {
     day: (typeof dayLabels)[number],
   ): ScheduleWarningDto[] {
     const warnings: ScheduleWarningDto[] = [];
+    const departmentSkillsMap: Record<string, string[]> = {
+      FOH: ['Order', 'Phục vụ', 'Boy'],
+      BOH: ['Bếp nóng', 'Bếp thịt', 'Bếp salad'],
+      Bar: ['Bar'],
+      'Tạp vụ': ['Tạp vụ'],
+      'Quản lý': ['Order', 'Phục vụ', 'Bar', 'Boy', 'Bếp nóng', 'Bếp thịt', 'Bếp salad'],
+    };
+
     for (const role of [assignment.primaryRole, assignment.secondaryRole].filter(
       (item): item is string => Boolean(item),
     )) {
       const skills = employeeSkills(employee);
-      if (skills[role] !== true) {
+      const deptSkills = departmentSkillsMap[role];
+      const hasSkill = deptSkills
+        ? deptSkills.some((s) => skills[s] === true) || skills[role] === true
+        : skills[role] === true;
+
+      if (!hasSkill) {
         warnings.push({
           code: 'EMPLOYEE_SKILL_MISMATCH',
           message: 'Nhân viên chưa có skill phù hợp với vai trò được xếp',

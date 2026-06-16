@@ -105,12 +105,20 @@ export class EmployeeService {
     }
     if (await this.repository.findByPhone(phone, employeeId)) throw duplicateError('phone');
 
+    const newEmployeeId = input.id ?? (await this.generateHubId());
+    if (newEmployeeId !== employeeId && (await this.repository.idExists(newEmployeeId))) {
+      throw duplicateError('id');
+    }
+
     try {
-      const employee = await this.repository.update(employeeId, { ...input, phone });
+      const employee = await this.repository.update(employeeId, newEmployeeId, { ...input, phone });
       if (!employee) throw new AppError(404, 'EMPLOYEE_NOT_FOUND', 'Không tìm thấy nhân viên');
-      return toDto((await this.repository.updateStatus(employeeId, input.status)) ?? employee);
+      return toDto((await this.repository.updateStatus(newEmployeeId, input.status)) ?? employee);
     } catch (error: unknown) {
-      if (isDuplicateKey(error)) throw duplicateError('phone');
+      if (isDuplicateKey(error)) {
+        if (await this.repository.findByPhone(phone, employeeId)) throw duplicateError('phone');
+        throw duplicateError('id');
+      }
       throw error;
     }
   }

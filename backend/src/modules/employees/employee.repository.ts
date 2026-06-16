@@ -1,7 +1,7 @@
 import type { FilterQuery } from 'mongoose';
 
 import { normalizePhone } from '../../lib/phone.js';
-import { EmployeeModel, UserCredentialModel, type Employee } from '../../models/index.js';
+import { EmployeeModel, UserCredentialModel, WeeklyScheduleModel, type Employee } from '../../models/index.js';
 import type {
   EmployeeCreateInput,
   EmployeeListInput,
@@ -83,11 +83,16 @@ export class EmployeeRepository {
     return { employees, total };
   }
 
-  public async update(employeeId: string, input: EmployeeUpdateInput): Promise<Employee | null> {
-    return EmployeeModel.findOneAndUpdate(
+  public async update(
+    employeeId: string,
+    newEmployeeId: string,
+    input: EmployeeUpdateInput,
+  ): Promise<Employee | null> {
+    const employee = await EmployeeModel.findOneAndUpdate(
       { employeeId },
       {
         $set: {
+          employeeId: newEmployeeId,
           name: input.name,
           phone: normalizePhone(input.phone),
           role: input.role,
@@ -102,6 +107,33 @@ export class EmployeeRepository {
       },
       { new: true, runValidators: true },
     ).lean();
+
+    if (employee && newEmployeeId !== employeeId) {
+      await WeeklyScheduleModel.updateMany(
+        { 'preferences.employeeId': employeeId },
+        { $set: { 'preferences.$[elem].employeeId': newEmployeeId } },
+        { arrayFilters: [{ 'elem.employeeId': employeeId }] }
+      );
+
+      await WeeklyScheduleModel.updateMany(
+        { 'preferences.overriddenByEmployeeId': employeeId },
+        { $set: { 'preferences.$[elem].overriddenByEmployeeId': newEmployeeId } },
+        { arrayFilters: [{ 'elem.overriddenByEmployeeId': employeeId }] }
+      );
+
+      await WeeklyScheduleModel.updateMany(
+        { 'assignments.employeeId': employeeId },
+        { $set: { 'assignments.$[elem].employeeId': newEmployeeId } },
+        { arrayFilters: [{ 'elem.employeeId': employeeId }] }
+      );
+
+      await WeeklyScheduleModel.updateMany(
+        { publishedByEmployeeId: employeeId },
+        { $set: { publishedByEmployeeId: newEmployeeId } }
+      );
+    }
+
+    return employee;
   }
 
   public async updateStatus(

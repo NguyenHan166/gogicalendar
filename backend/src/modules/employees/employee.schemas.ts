@@ -43,10 +43,20 @@ export const employeeCreateSchema = z
 
 export const employeeUpdateSchema = z
   .object({
+    id: trimmedText(100).optional(),
     ...employeeFields,
     status: z.enum(EMPLOYEE_STATUSES),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (!value.id && value.level.toUpperCase() !== 'HUB') {
+      context.addIssue({
+        code: 'custom',
+        path: ['id'],
+        message: 'ID chỉ được bỏ trống đối với nhân viên HUB',
+      });
+    }
+  });
 
 export const employeeStatusSchema = z
   .object({

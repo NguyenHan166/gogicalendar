@@ -28,7 +28,7 @@ export type EmployeeDocument = HydratedDocument<Employee>;
 
 export const employeeSchema = new Schema<Employee>(
   {
-    employeeId: { type: String, required: true, trim: true, immutable: true },
+    employeeId: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true, maxlength: 200 },
     phone: { type: String, required: true, trim: true },
     role: { type: String, enum: EMPLOYEE_ROLES, required: true },

@@ -90,7 +90,7 @@ interface ScheduleStore {
   
   // Admin Settings Actions
   addEmployee: (employee: Employee) => Promise<Employee>;
-  updateEmployee: (employee: Employee) => Promise<Employee>;
+  updateEmployee: (oldId: string, employee: Employee) => Promise<Employee>;
   updateEmployeeStatus: (id: string, status: Employee['status']) => Promise<Employee>;
   addShiftCode: (shift: ShiftCode) => Promise<ShiftCode>;
   updateShiftCode: (shift: ShiftCode) => Promise<ShiftCode>;
@@ -100,13 +100,13 @@ interface ScheduleStore {
   ) => Promise<ShiftCode>;
 }
 
-async function fetchCatalogs(user: Employee): Promise<{
+async function fetchCatalogs(): Promise<{
   employees: Employee[];
   shiftCodes: ShiftCode[];
   schedules: WeeklySchedule[];
 }> {
   const [employees, shiftCodes, schedules] = await Promise.all([
-    user.role === 'manager' ? employeeApi.list() : Promise.resolve([user]),
+    employeeApi.list(),
     shiftApi.list(),
     scheduleApi.list(),
   ]);
@@ -146,9 +146,14 @@ function assignmentPayload(
 function showScheduleMutationWarning(
   showToast: ScheduleStore['showToast'],
   warnings: Array<{ message: string }>,
+  successMessage: string,
+  successType: Toast['type'] = 'success',
 ): void {
   if (warnings.length > 0) {
-    showToast(warnings[0]?.message ?? 'Lịch đã lưu kèm cảnh báo nghiệp vụ.', 'warning');
+    const cleanSuccess = successMessage.replace(/[!！]$/, '');
+    showToast(`${cleanSuccess} nhưng ${warnings[0]?.message.toLowerCase()}`, 'warning');
+  } else {
+    showToast(successMessage, successType);
   }
 }
 
@@ -291,7 +296,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     if (!user) return;
     set({ catalogStatus: 'loading', catalogError: null, scheduleStatus: 'loading', scheduleError: null });
     try {
-      const catalogs = await fetchCatalogs(user);
+      const catalogs = await fetchCatalogs();
       const currentWeekId = get().currentWeekId;
       const nextWeekId =
         catalogs.schedules.find((schedule) => schedule.weekId === currentWeekId)?.weekId ??
@@ -433,8 +438,12 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         schedules: replaceSchedule(state.schedules, result.schedule),
         scheduleError: null,
       }));
-      showScheduleMutationWarning(get().showToast, result.warnings);
-      get().showToast(existing ? 'Đã cập nhật ca làm việc!' : 'Đã xếp ca thành công!', 'success');
+      showScheduleMutationWarning(
+        get().showToast,
+        result.warnings,
+        existing ? 'Đã cập nhật ca làm việc!' : 'Đã xếp ca thành công!',
+        'success',
+      );
       return result.schedule;
     } catch (error: unknown) {
       const message = getApiErrorMessage(error);
@@ -469,8 +478,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         schedules: replaceSchedule(state.schedules, result.schedule),
         scheduleError: null,
       }));
-      showScheduleMutationWarning(get().showToast, result.warnings);
-      get().showToast('Đã xóa ca làm việc!', 'info');
+      showScheduleMutationWarning(get().showToast, result.warnings, 'Đã xóa ca làm việc!', 'info');
       return result.schedule;
     } catch (error: unknown) {
       const message = getApiErrorMessage(error);
@@ -515,8 +523,7 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
         schedules: replaceSchedule(state.schedules, result.schedule),
         scheduleError: null,
       }));
-      showScheduleMutationWarning(get().showToast, result.warnings);
-      get().showToast('Đã cập nhật ca làm việc!', 'success');
+      showScheduleMutationWarning(get().showToast, result.warnings, 'Đã cập nhật ca làm việc!', 'success');
       return result.schedule;
     } catch (error: unknown) {
       const message = getApiErrorMessage(error);
@@ -598,15 +605,15 @@ export const useScheduleStore = create<ScheduleStore>((set, get) => ({
     }
   },
   
-  updateEmployee: async (employee) => {
+  updateEmployee: async (oldId, employee) => {
     try {
-      const updated = await employeeApi.update(employee);
+      const updated = await employeeApi.update(oldId, employee);
       set((state) => ({
         employees: state.employees.map((item) =>
-          item.id === updated.id ? updated : item,
+          item.id === oldId ? updated : item,
         ),
         currentUser:
-          state.currentUser?.id === updated.id ? updated : state.currentUser,
+          state.currentUser?.id === oldId ? updated : state.currentUser,
         catalogError: null,
       }));
       get().showToast(`Đã cập nhật thông tin nhân viên ${updated.name}!`, 'success');

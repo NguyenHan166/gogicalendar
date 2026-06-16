@@ -47,7 +47,7 @@ npm run dev
 Vite proxies `/api` to `http://localhost:3000`. For a separately hosted API, set:
 
 ```bash
-VITE_API_BASE_URL=https://api.example.com
+VITE_API_BASE_URL=http://localhost:3000
 ```
 
 ## Commands

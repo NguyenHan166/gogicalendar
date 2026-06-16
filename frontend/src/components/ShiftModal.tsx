@@ -1,6 +1,24 @@
 import React from 'react';
 import type { ShiftCode } from '../data/mockData';
 
+const timeOptions: string[] = [];
+for (let h = 0; h < 24; h++) {
+  const hStr = h.toString().padStart(2, '0');
+  timeOptions.push(`${hStr}:00`);
+  timeOptions.push(`${hStr}:15`);
+  timeOptions.push(`${hStr}:30`);
+  timeOptions.push(`${hStr}:45`);
+}
+
+const getTimeOptions = (currentVal?: string | null) => {
+  const options = [...timeOptions];
+  if (currentVal && !options.includes(currentVal)) {
+    options.push(currentVal);
+    options.sort();
+  }
+  return options;
+};
+
 interface ShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -70,25 +88,31 @@ export function ShiftModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] text-zinc-500 font-extrabold uppercase mb-1">Giờ bắt đầu</label>
-              <input
-                type="text"
+              <select
                 required={shiftForm.type === 'work'}
-                value={shiftForm.startTime}
+                value={shiftForm.startTime || ''}
                 onChange={(e) => setShiftForm(prev => ({ ...prev, startTime: e.target.value }))}
-                placeholder="HH:MM"
                 className="w-full bg-white border border-zinc-300 rounded-lg p-2 text-xs text-zinc-900 outline-none focus:border-amber-500 font-mono"
-              />
+              >
+                <option value="">--:--</option>
+                {getTimeOptions(shiftForm.startTime).map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-[10px] text-zinc-500 font-extrabold uppercase mb-1">Giờ kết thúc</label>
-              <input
-                type="text"
+              <select
                 required={shiftForm.type === 'work'}
-                value={shiftForm.endTime}
+                value={shiftForm.endTime || ''}
                 onChange={(e) => setShiftForm(prev => ({ ...prev, endTime: e.target.value }))}
-                placeholder="HH:MM"
                 className="w-full bg-white border border-zinc-300 rounded-lg p-2 text-xs text-zinc-900 outline-none focus:border-amber-500 font-mono"
-              />
+              >
+                <option value="">--:--</option>
+                {getTimeOptions(shiftForm.endTime).map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -109,25 +133,31 @@ export function ShiftModal({
             <div className="grid grid-cols-2 gap-3 p-2 bg-zinc-50 border border-zinc-200 rounded-lg">
               <div>
                 <label className="block text-[10px] text-zinc-500 font-extrabold uppercase mb-1">Giờ bắt đầu ca 2</label>
-                <input
-                  type="text"
+                <select
                   required={shiftForm.isSplit}
                   value={shiftForm.startTime2 || ''}
                   onChange={(e) => setShiftForm(prev => ({ ...prev, startTime2: e.target.value }))}
-                  placeholder="HH:MM"
                   className="w-full bg-white border border-zinc-300 rounded-lg p-2 text-xs text-zinc-900 outline-none focus:border-amber-500 font-mono"
-                />
+                >
+                  <option value="">--:--</option>
+                  {getTimeOptions(shiftForm.startTime2).map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-[10px] text-zinc-500 font-extrabold uppercase mb-1">Giờ kết thúc ca 2</label>
-                <input
-                  type="text"
+                <select
                   required={shiftForm.isSplit}
                   value={shiftForm.endTime2 || ''}
                   onChange={(e) => setShiftForm(prev => ({ ...prev, endTime2: e.target.value }))}
-                  placeholder="HH:MM"
                   className="w-full bg-white border border-zinc-300 rounded-lg p-2 text-xs text-zinc-900 outline-none focus:border-amber-500 font-mono"
-                />
+                >
+                  <option value="">--:--</option>
+                  {getTimeOptions(shiftForm.endTime2).map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}

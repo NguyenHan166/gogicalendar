@@ -48,7 +48,7 @@ export function EmployeeModal({
             <input
               type="text"
               required={empForm.level !== 'HUB'}
-              disabled={empFormMode === 'edit' || empForm.level === 'HUB'}
+              disabled={empForm.level === 'HUB'}
               value={empForm.level === 'HUB' ? '' : empForm.id}
               onChange={(e) => setEmpForm(prev => ({ ...prev, id: e.target.value.trim() }))}
               placeholder={empForm.level === 'HUB' ? "Tự động tạo (Không hiển thị)" : "Ví dụ: 1048964"}

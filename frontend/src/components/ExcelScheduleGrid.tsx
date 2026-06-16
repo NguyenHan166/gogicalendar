@@ -85,15 +85,7 @@ export function ExcelScheduleGrid() {
     return false;
   };
 
-  // Count working employees (non-leave, non-off, non-empty) per day for a group
-  const countWorkingTotal = (group: string, day: string): number => {
-    const groupEmps = employees.filter(e => e.scheduleGroup === group);
-    return groupEmps.reduce((count, emp) => {
-      const sc = getShift(emp.id, day);
-      if (!sc || sc === 'NPL' || sc === 'OFF' || sc === 'R' || sc === 'TS') return count;
-      return count + 1;
-    }, 0);
-  };
+
 
   const countWorkingPeriod = (group: string, day: string, period: 'AM' | 'PM'): number => {
     const groupEmps = employees.filter(e => e.scheduleGroup === group);
@@ -191,66 +183,93 @@ export function ExcelScheduleGrid() {
         aoa.push(row);
       });
 
-      // 1. Định biên dự trù row
-      const forecastRowIdx = aoa.length;
-      const forecastRow = [
-        'Định biên dự trù (Nhập tay)',
+      // 1. Định biên dự trù Sáng row
+      const forecastAMRowIdx = aoa.length;
+      const forecastAMRow = [
+        'Định biên dự trù Sáng (Nhập tay)',
         '',
         '',
         'Cần',
-        ...daysOfWeek.map(day => activeSchedule.forecast[day]?.[group] ?? 0),
+        ...daysOfWeek.map(day => activeSchedule.forecast[day]?.[group + '_AM'] ?? 0),
         ''
       ];
-      aoa.push(forecastRow);
-      merges.push({ s: { r: forecastRowIdx, c: 0 }, e: { r: forecastRowIdx, c: 2 } });
+      aoa.push(forecastAMRow);
+      merges.push({ s: { r: forecastAMRowIdx, c: 0 }, e: { r: forecastAMRowIdx, c: 2 } });
 
-      // 2. Đã xếp thực tế row
-      const actualRowIdx = aoa.length;
-      const actualRow = [
-        'Đã xếp thực tế (Tổng)',
+      // 2. Đã xếp thực tế Sáng row
+      const actualAMRowIdx = aoa.length;
+      const actualAMRow = [
+        'Đã xếp thực tế Sáng',
         '',
         '',
         'Có',
-        ...daysOfWeek.map(day => countWorkingTotal(group, day)),
+        ...daysOfWeek.map(day => countWorkingPeriod(group, day, 'AM')),
         ''
       ];
-      aoa.push(actualRow);
-      merges.push({ s: { r: actualRowIdx, c: 0 }, e: { r: actualRowIdx, c: 2 } });
+      aoa.push(actualAMRow);
+      merges.push({ s: { r: actualAMRowIdx, c: 0 }, e: { r: actualAMRowIdx, c: 2 } });
 
-      // 3. Chênh lệch row
-      const diffRowIdx = aoa.length;
-      const diffRow = [
-        'Chênh lệch thừa/thiếu',
+      // 3. Chênh lệch Sáng row
+      const diffAMRowIdx = aoa.length;
+      const diffAMRow = [
+        'Chênh lệch thừa/thiếu Sáng',
         '',
         '',
         '+/-',
         ...daysOfWeek.map(day => {
-          const targetVal = activeSchedule.forecast[day]?.[group] ?? 0;
-          const actualVal = countWorkingTotal(group, day);
+          const targetVal = activeSchedule.forecast[day]?.[group + '_AM'] ?? 0;
+          const actualVal = countWorkingPeriod(group, day, 'AM');
           const diff = actualVal - targetVal;
           return diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Đủ';
         }),
         ''
       ];
-      aoa.push(diffRow);
-      merges.push({ s: { r: diffRowIdx, c: 0 }, e: { r: diffRowIdx, c: 2 } });
+      aoa.push(diffAMRow);
+      merges.push({ s: { r: diffAMRowIdx, c: 0 }, e: { r: diffAMRowIdx, c: 2 } });
 
-      // 4. AM/PM breakdown row
-      const amPmRowIdx = aoa.length;
-      const amPmRow = [
-        'Ca sáng (AM) / Ca tối (PM)',
+      // 4. Định biên dự trù Tối row
+      const forecastPMRowIdx = aoa.length;
+      const forecastPMRow = [
+        'Định biên dự trù Tối (Nhập tay)',
         '',
         '',
-        'Buổi',
+        'Cần',
+        ...daysOfWeek.map(day => activeSchedule.forecast[day]?.[group + '_PM'] ?? 0),
+        ''
+      ];
+      aoa.push(forecastPMRow);
+      merges.push({ s: { r: forecastPMRowIdx, c: 0 }, e: { r: forecastPMRowIdx, c: 2 } });
+
+      // 5. Đã xếp thực tế Tối row
+      const actualPMRowIdx = aoa.length;
+      const actualPMRow = [
+        'Đã xếp thực tế Tối',
+        '',
+        '',
+        'Có',
+        ...daysOfWeek.map(day => countWorkingPeriod(group, day, 'PM')),
+        ''
+      ];
+      aoa.push(actualPMRow);
+      merges.push({ s: { r: actualPMRowIdx, c: 0 }, e: { r: actualPMRowIdx, c: 2 } });
+
+      // 6. Chênh lệch Tối row
+      const diffPMRowIdx = aoa.length;
+      const diffPMRow = [
+        'Chênh lệch thừa/thiếu Tối',
+        '',
+        '',
+        '+/-',
         ...daysOfWeek.map(day => {
-          const am = countWorkingPeriod(group, day, 'AM');
-          const pm = countWorkingPeriod(group, day, 'PM');
-          return `AM: ${am} / PM: ${pm}`;
+          const targetVal = activeSchedule.forecast[day]?.[group + '_PM'] ?? 0;
+          const actualVal = countWorkingPeriod(group, day, 'PM');
+          const diff = actualVal - targetVal;
+          return diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Đủ';
         }),
         ''
       ];
-      aoa.push(amPmRow);
-      merges.push({ s: { r: amPmRowIdx, c: 0 }, e: { r: amPmRowIdx, c: 2 } });
+      aoa.push(diffPMRow);
+      merges.push({ s: { r: diffPMRowIdx, c: 0 }, e: { r: diffPMRowIdx, c: 2 } });
 
       // Timeline row details if group in ['ORDER + PHỤC VỤ', 'BOY', 'BOH (BẾP)', 'BAR']
       if (['ORDER + PHỤC VỤ', 'BOY', 'BOH (BẾP)', 'BAR'].includes(group)) {
@@ -357,7 +376,7 @@ export function ExcelScheduleGrid() {
             left: { style: 'thin', color: { rgb: '7F7F7F' } },
             right: { style: 'thin', color: { rgb: '7F7F7F' } }
           };
-        } else if (col0Val === 'Định biên dự trù (Nhập tay)') {
+        } else if (col0Val && typeof col0Val === 'string' && col0Val.startsWith('Định biên dự trù')) {
           // Forecast Row
           style.font = { name: 'Arial', sz: 9, bold: true, color: { rgb: '7F6000' } };
           style.fill = { fgColor: { rgb: 'FFF2CC' } };
@@ -367,11 +386,11 @@ export function ExcelScheduleGrid() {
             left: { style: 'thin', color: { rgb: 'D9D9D9' } },
             right: { style: 'thin', color: { rgb: 'D9D9D9' } }
           };
-        } else if (col0Val === 'Đã xếp thực tế (Tổng)') {
+        } else if (col0Val && typeof col0Val === 'string' && col0Val.startsWith('Đã xếp thực tế')) {
           // Actual Row
           style.font = { name: 'Arial', sz: 9, bold: true, color: { rgb: '1F4E79' } };
           style.fill = { fgColor: { rgb: 'F2F2F2' } };
-        } else if (col0Val === 'Chênh lệch thừa/thiếu') {
+        } else if (col0Val && typeof col0Val === 'string' && col0Val.startsWith('Chênh lệch thừa/thiếu')) {
           // Variance Row
           style.font = { name: 'Arial', sz: 9, bold: true };
           style.fill = { fgColor: { rgb: 'F2F2F2' } };
@@ -389,10 +408,6 @@ export function ExcelScheduleGrid() {
               style.font.color = { rgb: '7F6000' };
             }
           }
-        } else if (col0Val === 'Ca sáng (AM) / Ca tối (PM)') {
-          // AM/PM row
-          style.font = { name: 'Arial', sz: 9, bold: true, color: { rgb: '333333' } };
-          style.fill = { fgColor: { rgb: 'FCE4D6' } };
         } else if (isTimelineRow) {
           // Timeline Row
           style.font = { name: 'Arial', sz: 8.5, color: { rgb: '595959' } };
@@ -512,17 +527,82 @@ export function ExcelScheduleGrid() {
                     {daysOfWeek.map((day) => {
                       const sc = getShift(emp.id, day);
                       const shiftDetail = shiftCodes.find(s => s.code === sc);
-                      const titleText = shiftDetail 
-                        ? shiftDetail.isSplit 
-                          ? `${shiftDetail.code}: ${shiftDetail.startTime}-${shiftDetail.endTime} & ${shiftDetail.startTime2}-${shiftDetail.endTime2}`
-                          : `${shiftDetail.code}: ${shiftDetail.startTime}-${shiftDetail.endTime}`
-                        : '';
+                      const savedPreference = activeSchedule.preferences?.find(
+                        (preference) => preference.employeeId === emp.id,
+                      );
+                      const pref = savedPreference?.dayPreferences?.[day];
+                      let prefText = '';
+                      if (pref) {
+                        if (pref.type === 'unavailable') {
+                          prefText = 'Đăng ký: Bận (OFF)';
+                        } else if (pref.type === 'preferred') {
+                          prefText = `Đăng ký: Ca mong muốn (${pref.preferredShift})${pref.note ? ` - Ghi chú: ${pref.note}` : ''}`;
+                        } else if (pref.type === 'available') {
+                          prefText = 'Đăng ký: Rảnh (Đi làm)';
+                        }
+                      }
+
+                      const titleParts = [];
+                      if (shiftDetail) {
+                        titleParts.push(
+                          shiftDetail.isSplit 
+                            ? `${shiftDetail.code}: ${shiftDetail.startTime}-${shiftDetail.endTime} & ${shiftDetail.startTime2}-${shiftDetail.endTime2}`
+                            : `${shiftDetail.code}: ${shiftDetail.startTime}-${shiftDetail.endTime}`
+                        );
+                      }
+                      if (prefText) titleParts.push(prefText);
+                      const fullTitle = titleParts.join('\n');
+
+                      // Styling and display content based on assigned shift vs employee preference
+                      let displayContent = <span className="block font-bold">{sc || ''}</span>;
+                      let cellClass = getCellBgClass(sc);
+                      let conflictIndicator = null;
+
+                      if (!sc) {
+                        if (pref) {
+                          if (pref.type === 'unavailable') {
+                            cellClass = 'bg-red-50/60 text-red-600 border border-dashed border-red-200';
+                            displayContent = <span className="block text-[10px] font-extrabold text-red-500">BẬN</span>;
+                          } else if (pref.type === 'preferred') {
+                            cellClass = 'bg-emerald-50/50 text-emerald-700 border border-dashed border-emerald-200';
+                            displayContent = (
+                              <div className="flex flex-col items-center justify-center leading-none">
+                                <span className="text-[10px] font-bold text-emerald-600">({pref.preferredShift})</span>
+                                <span className="text-[8px] font-medium text-emerald-500 scale-90">ĐK</span>
+                              </div>
+                            );
+                          } else if (pref.type === 'available') {
+                            cellClass = 'bg-blue-50/30 text-blue-600 border border-dashed border-blue-200';
+                            displayContent = <span className="block text-[9px] font-semibold text-blue-500">RẢNH</span>;
+                          }
+                        }
+                      } else {
+                        // Warn if assigned shift conflicts with registration
+                        const isWorkShift = !['OFF', 'R', 'NPL', 'TS'].includes(sc);
+                        if (pref) {
+                          if (pref.type === 'unavailable' && isWorkShift) {
+                            conflictIndicator = (
+                              <div 
+                                className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-600 rounded-bl-sm" 
+                                title="Xung đột: Đăng ký bận nhưng vẫn bị xếp ca làm việc!"
+                              />
+                            );
+                          } else if (pref.type === 'preferred' && pref.preferredShift !== sc && isWorkShift) {
+                            conflictIndicator = (
+                              <div 
+                                className="absolute top-0 right-0 w-2.5 h-2.5 bg-amber-500 rounded-bl-sm" 
+                                title={`Khác ca đăng ký: Nhân viên mong muốn ca ${pref.preferredShift}`}
+                              />
+                            );
+                          }
+                        }
+                      }
 
                       return (
                         <td
                           key={day}
-                          title={titleText}
-                          className={`border border-zinc-300 px-0.5 py-0.5 text-center cursor-pointer transition-colors relative h-8 ${getCellBgClass(sc)} hover:opacity-90`}
+                          title={fullTitle}
+                          className={`border border-zinc-300 px-0.5 py-0.5 text-center cursor-pointer transition-colors relative h-8 ${cellClass} hover:opacity-90`}
                           onClick={() => {
                             if (isEditable) {
                               setPickerCell({
@@ -538,7 +618,8 @@ export function ExcelScheduleGrid() {
                             }
                           }}
                         >
-                          <span className="block font-bold">{sc || ''}</span>
+                          {conflictIndicator}
+                          {displayContent}
                         </td>
                       );
                     })}
@@ -555,16 +636,16 @@ export function ExcelScheduleGrid() {
                   </tr>
                 ))}
 
-                {/* 1. ROW: Định biên dự trù (Manual input for Manager) */}
+                 {/* 1. ROW: Định biên dự trù Sáng (Manual input for Manager) */}
                 <tr className="bg-[#fff2cc] font-bold text-zinc-900 border-t-2 border-zinc-400">
                   <td className="border border-zinc-400 px-2 py-1 text-left" colSpan={3}>
                     <span className="text-[#7f6000] font-extrabold text-[10px] uppercase">
-                      Định biên dự trù (Nhập tay)
+                      Định biên dự trù Sáng (Nhập tay)
                     </span>
                   </td>
                   <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">Cần</td>
                   {daysOfWeek.map((day) => {
-                    const targetVal = activeSchedule.forecast[day]?.[group] ?? 0;
+                    const targetVal = activeSchedule.forecast[day]?.[group + '_AM'] ?? 0;
                     return (
                       <td key={day} className="border border-zinc-400 px-1 py-1 text-center bg-white">
                         <input
@@ -573,7 +654,7 @@ export function ExcelScheduleGrid() {
                           value={targetVal}
                           onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
-                            handleTargetChange(group, day, isNaN(val) ? 0 : val);
+                            handleTargetChange(group + '_AM', day, isNaN(val) ? 0 : val);
                           }}
                           disabled={!isEditable}
                           className="w-full bg-transparent text-center text-[11px] font-extrabold text-zinc-900 border-none outline-none focus:ring-1 focus:ring-amber-500 rounded p-0"
@@ -584,16 +665,16 @@ export function ExcelScheduleGrid() {
                   <td className="border border-zinc-400 bg-zinc-50"></td>
                 </tr>
 
-                {/* 2. ROW: Đã xếp thực tế (Calculated) */}
+                {/* 2. ROW: Đã xếp thực tế Sáng (Calculated) */}
                 <tr className="bg-[#f2f2f2] font-bold text-zinc-900">
                   <td className="border border-zinc-400 px-2 py-1 text-left" colSpan={3}>
                     <span className="text-zinc-700 font-extrabold text-[10px] uppercase">
-                      Đã xếp thực tế (Tổng)
+                      Đã xếp thực tế Sáng
                     </span>
                   </td>
                   <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">Có</td>
                   {daysOfWeek.map((day) => {
-                    const actualVal = countWorkingTotal(group, day);
+                    const actualVal = countWorkingPeriod(group, day, 'AM');
                     return (
                       <td key={day} className="border border-zinc-400 px-1 py-1 text-center text-[#1f4e79] font-extrabold text-xs">
                         {actualVal}
@@ -603,17 +684,17 @@ export function ExcelScheduleGrid() {
                   <td className="border border-zinc-400 bg-zinc-50"></td>
                 </tr>
 
-                {/* 3. ROW: Chênh lệch nhân lực */}
+                {/* 3. ROW: Chênh lệch Sáng */}
                 <tr className="font-bold text-zinc-900">
                   <td className="border border-zinc-400 px-2 py-1 text-left bg-zinc-100" colSpan={3}>
                     <span className="text-zinc-800 font-extrabold text-[10px] uppercase">
-                      Chênh lệch thừa/thiếu
+                      Chênh lệch thừa/thiếu Sáng
                     </span>
                   </td>
                   <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">+/-</td>
                   {daysOfWeek.map((day) => {
-                    const targetVal = activeSchedule.forecast[day]?.[group] ?? 0;
-                    const actualVal = countWorkingTotal(group, day);
+                    const targetVal = activeSchedule.forecast[day]?.[group + '_AM'] ?? 0;
+                    const actualVal = countWorkingPeriod(group, day, 'AM');
                     const diff = actualVal - targetVal;
                     const sign = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Đủ';
                     return (
@@ -625,21 +706,70 @@ export function ExcelScheduleGrid() {
                   <td className="border border-zinc-400 bg-zinc-50"></td>
                 </tr>
 
-                {/* 4. ROW: AM/PM Breakdown */}
-                <tr className="bg-[#fce4d6] font-bold text-zinc-900">
+                {/* 4. ROW: Định biên dự trù Tối (Manual input for Manager) */}
+                <tr className="bg-[#fff2cc] font-bold text-zinc-900">
                   <td className="border border-zinc-400 px-2 py-1 text-left" colSpan={3}>
-                    <span className="text-[#c00000] font-extrabold text-[10px] uppercase">
-                      Ca sáng (AM) / Ca tối (PM)
+                    <span className="text-[#7f6000] font-extrabold text-[10px] uppercase">
+                      Định biên dự trù Tối (Nhập tay)
                     </span>
                   </td>
-                  <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">Buổi</td>
+                  <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">Cần</td>
                   {daysOfWeek.map((day) => {
-                    const am = countWorkingPeriod(group, day, 'AM');
-                    const pm = countWorkingPeriod(group, day, 'PM');
+                    const targetVal = activeSchedule.forecast[day]?.[group + '_PM'] ?? 0;
                     return (
-                      <td key={day} className="border border-zinc-400 px-1 py-1 text-center text-zinc-800">
-                        <div className="text-[#1f4e79] text-[10px]">AM: {am}</div>
-                        <div className="text-[#c00000] text-[10px]">PM: {pm}</div>
+                      <td key={day} className="border border-zinc-400 px-1 py-1 text-center bg-white">
+                        <input
+                          type="number"
+                          min="0"
+                          value={targetVal}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            handleTargetChange(group + '_PM', day, isNaN(val) ? 0 : val);
+                          }}
+                          disabled={!isEditable}
+                          className="w-full bg-transparent text-center text-[11px] font-extrabold text-zinc-900 border-none outline-none focus:ring-1 focus:ring-amber-500 rounded p-0"
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="border border-zinc-400 bg-zinc-50"></td>
+                </tr>
+
+                {/* 5. ROW: Đã xếp thực tế Tối (Calculated) */}
+                <tr className="bg-[#f2f2f2] font-bold text-zinc-900">
+                  <td className="border border-zinc-400 px-2 py-1 text-left" colSpan={3}>
+                    <span className="text-zinc-700 font-extrabold text-[10px] uppercase">
+                      Đã xếp thực tế Tối
+                    </span>
+                  </td>
+                  <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">Có</td>
+                  {daysOfWeek.map((day) => {
+                    const actualVal = countWorkingPeriod(group, day, 'PM');
+                    return (
+                      <td key={day} className="border border-zinc-400 px-1 py-1 text-center text-[#1f4e79] font-extrabold text-xs">
+                        {actualVal}
+                      </td>
+                    );
+                  })}
+                  <td className="border border-zinc-400 bg-zinc-50"></td>
+                </tr>
+
+                {/* 6. ROW: Chênh lệch Tối */}
+                <tr className="font-bold text-zinc-900">
+                  <td className="border border-zinc-400 px-2 py-1 text-left bg-zinc-100" colSpan={3}>
+                    <span className="text-zinc-800 font-extrabold text-[10px] uppercase">
+                      Chênh lệch thừa/thiếu Tối
+                    </span>
+                  </td>
+                  <td className="border border-zinc-400 px-1 py-1 text-center font-bold text-[10px] text-zinc-600 bg-zinc-100">+/-</td>
+                  {daysOfWeek.map((day) => {
+                    const targetVal = activeSchedule.forecast[day]?.[group + '_PM'] ?? 0;
+                    const actualVal = countWorkingPeriod(group, day, 'PM');
+                    const diff = actualVal - targetVal;
+                    const sign = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : 'Đủ';
+                    return (
+                      <td key={day} className={`border border-zinc-400 px-1 py-1 text-center text-xs ${getVarianceStyle(diff)}`}>
+                        {sign}
                       </td>
                     );
                   })}
@@ -784,14 +914,14 @@ export function ExcelScheduleGrid() {
               <div className="flex flex-wrap gap-1.5">
                 {[
                   { code: '', name: 'Bỏ xếp ca', color: 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 border-zinc-300' },
-                  { code: 'R', name: 'Nghỉ tuần R', color: 'bg-zinc-50 hover:bg-zinc-100 text-zinc-450 border-zinc-200' },
-                  { code: 'OFF', name: 'Nghỉ OFF', color: 'bg-zinc-50 hover:bg-zinc-100 text-zinc-450 border-zinc-200' },
-                  { code: 'NPL', name: 'Nghỉ phép', color: 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200' },
-                  { code: 'KF1', name: 'KF Sáng (08:00)', color: 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200 font-bold' },
-                  { code: 'KF3', name: 'KF Tối (15:00)', color: 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200 font-bold' },
-                  { code: 'P22', name: 'Tối P22 (17:00)', color: 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 font-bold' },
-                  { code: 'S1', name: 'Ca gãy S1 (07:30)', color: 'bg-violet-50 hover:bg-violet-100 text-violet-700 border-violet-200 font-bold' },
-                  { code: 'S2', name: 'Ca gãy S2 (07:30)', color: 'bg-violet-50 hover:bg-violet-100 text-violet-700 border-violet-200 font-bold' },
+                  { code: 'NPL', name: 'NPL', color: 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200' },
+                  { code: 'KF1', name: 'KF1', color: 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200 font-bold' },
+                  { code: 'KF3', name: 'KF3', color: 'bg-sky-50 hover:bg-sky-100 text-sky-700 border-sky-200 font-bold' },
+                  { code: 'P22', name: 'P22', color: 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 font-bold' },
+                  { code: 'P45', name: 'P45', color: 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 font-bold' },
+                  { code: 'P30', name: 'P30', color: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 font-bold' },
+                  { code: 'S20', name: 'S20', color: 'bg-violet-50 hover:bg-violet-100 text-violet-700 border-violet-200 font-bold' },
+                  { code: 'P29', name: 'P29', color: 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 font-bold' },
                 ].map(shortcut => (
                   <button
                     key={shortcut.code}
