@@ -23,6 +23,8 @@ export interface ShiftCode {
   startTime2?: string | null;
   endTime2?: string | null;
   isSplit?: boolean;
+  applicableDepartments?: string[];
+  status?: 'active' | 'inactive';
 }
 
 export interface EmployeePreference {

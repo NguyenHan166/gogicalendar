@@ -1,73 +1,50 @@
-# React + TypeScript + Vite
+# GogiCalendar Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React, TypeScript, Zustand, Tailwind CSS, and Vite frontend for GogiCalendar.
 
-Currently, two official plugins are available:
+## Backend integration
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Authentication, employee, and shift-code screens use the Express API:
 
-## React Compiler
+- `POST /api/auth/login/manager`
+- `POST /api/auth/login/employee`
+- `POST /api/auth/refresh`
+- `GET /api/employees`
+- `POST /api/employees`
+- `PUT /api/employees/:id`
+- `PATCH /api/employees/:id/status`
+- `GET /api/shifts`
+- `POST /api/shifts`
+- `PUT /api/shifts/:code`
+- `PATCH /api/shifts/:code/status`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+The access token is kept in memory. Sessions are restored with the HttpOnly
+refresh cookie. Employee and shift lists automatically load every paginated API
+page after login.
 
-## Expanding the ESLint configuration
+Schedule, assignment, preference, and forecast data remain local mock data until
+their backend phases are implemented.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Local development
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Start the backend on port `3000`, then run:
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Vite proxies `/api` to `http://localhost:3000`. For a separately hosted API, set:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+VITE_API_BASE_URL=https://api.example.com
 ```
+
+## Commands
+
+| Command         | Purpose                  |
+| --------------- | ------------------------ |
+| `npm run dev`   | Start Vite development   |
+| `npm run build` | Typecheck and build      |
+| `npm run lint`  | Run ESLint               |
+| `npm run preview` | Preview production build |

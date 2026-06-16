@@ -6,6 +6,7 @@ import type { Employee, ShiftCode } from './data/mockData';
 import { EmployeeModal } from './components/EmployeeModal';
 import { ShiftModal } from './components/ShiftModal';
 import { SearchableShiftSelect } from './components/SearchableShiftSelect';
+import { getApiErrorMessage } from './lib/api';
 import { 
   Calendar, 
   Users, 
@@ -31,6 +32,8 @@ function App() {
     currentUser,
     authStatus,
     authError,
+    catalogStatus,
+    catalogError,
     initializeAuth,
     loginEmployee,
     loginManager,
@@ -40,14 +43,18 @@ function App() {
     submitPreferences,
     addEmployee,
     updateEmployee,
+    updateEmployeeStatus,
     addShiftCode,
     updateShiftCode,
+    updateShiftStatus,
+    loadCatalogs,
     createNextWeek
   } = useScheduleStore();
 
   // Path Router State & Logic
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [loginSubmitting, setLoginSubmitting] = useState(false);
+  const [catalogSubmitting, setCatalogSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<'schedule' | 'settings'>('schedule');
   const [empScheduleTab, setEmpScheduleTab] = useState<'personal' | 'general'>('personal');
 
@@ -288,7 +295,9 @@ function App() {
     color: 'sky',
     startTime2: '',
     endTime2: '',
-    isSplit: false
+    isSplit: false,
+    applicableDepartments: [],
+    status: 'active'
   });
 
   // Shift List Search & Filter States
@@ -442,15 +451,12 @@ function App() {
   };
 
   // Save Employee
-  const handleSaveEmployee = (e: React.FormEvent) => {
+  const handleSaveEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalEmp = { ...empForm };
-    finalEmp.phone = finalEmp.phone.replace(/\./g, '').trim();
 
     if (finalEmp.level === 'HUB') {
-      if (empFormMode === 'add' || !finalEmp.id.startsWith('HUB_')) {
-        finalEmp.id = 'HUB_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5).toUpperCase();
-      }
+      if (empFormMode === 'add') finalEmp.id = '';
     } else {
       if (!finalEmp.id) {
         alert('Vui lòng điền đầy đủ Mã nhân viên!');
@@ -463,16 +469,19 @@ function App() {
       return;
     }
 
-    if (empFormMode === 'add') {
-      if (employees.some(e => e.id === finalEmp.id)) {
-        alert('Mã nhân viên đã tồn tại!');
-        return;
+    setCatalogSubmitting(true);
+    try {
+      if (empFormMode === 'add') {
+        await addEmployee(finalEmp);
+      } else {
+        await updateEmployee(finalEmp);
       }
-      addEmployee(finalEmp);
-    } else {
-      updateEmployee(finalEmp);
+      setEmployeeModalOpen(false);
+    } catch (error: unknown) {
+      alert(getApiErrorMessage(error));
+    } finally {
+      setCatalogSubmitting(false);
     }
-    setEmployeeModalOpen(false);
   };
 
   // Open Add Shift
@@ -488,7 +497,9 @@ function App() {
       color: 'sky',
       startTime2: '',
       endTime2: '',
-      isSplit: false
+      isSplit: false,
+      applicableDepartments: [],
+      status: 'active'
     });
     setShiftModalOpen(true);
   };
@@ -506,7 +517,7 @@ function App() {
   };
 
   // Save Shift
-  const handleSaveShift = (e: React.FormEvent) => {
+  const handleSaveShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!shiftForm.code || !shiftForm.name) {
       alert('Vui lòng điền Mã ca và Tên ca!');
@@ -518,16 +529,43 @@ function App() {
       endTime2: shiftForm.isSplit ? (shiftForm.endTime2 || null) : null,
       isSplit: !!shiftForm.isSplit
     };
-    if (shiftFormMode === 'add') {
-      if (shiftCodes.some(s => s.code === cleanShift.code)) {
-        alert('Mã ca này đã tồn tại!');
-        return;
+    setCatalogSubmitting(true);
+    try {
+      if (shiftFormMode === 'add') {
+        await addShiftCode(cleanShift);
+      } else {
+        await updateShiftCode(cleanShift);
       }
-      addShiftCode(cleanShift);
-    } else {
-      updateShiftCode(cleanShift);
+      setShiftModalOpen(false);
+    } catch (error: unknown) {
+      alert(getApiErrorMessage(error));
+    } finally {
+      setCatalogSubmitting(false);
     }
-    setShiftModalOpen(false);
+  };
+
+  const handleEmployeeStatus = async (employee: Employee) => {
+    const status = employee.status === 'active' ? 'inactive' : 'active';
+    if (!window.confirm(`${status === 'inactive' ? 'Vô hiệu hóa' : 'Kích hoạt'} ${employee.name}?`)) {
+      return;
+    }
+    try {
+      await updateEmployeeStatus(employee.id, status);
+    } catch (error: unknown) {
+      alert(getApiErrorMessage(error));
+    }
+  };
+
+  const handleShiftStatus = async (shift: ShiftCode) => {
+    const status = shift.status === 'inactive' ? 'active' : 'inactive';
+    if (!window.confirm(`${status === 'inactive' ? 'Vô hiệu hóa' : 'Kích hoạt'} ca ${shift.code}?`)) {
+      return;
+    }
+    try {
+      await updateShiftStatus(shift.code, status);
+    } catch (error: unknown) {
+      alert(getApiErrorMessage(error));
+    }
   };
 
   if (authStatus === 'loading') {
@@ -1133,6 +1171,23 @@ function App() {
             /* ==================== SETTINGS SCREEN (ADMIN/MANAGER ONLY) ==================== */
             isManager ? (
               <div className="space-y-6">
+              {catalogStatus === 'loading' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs font-bold text-blue-800">
+                  Đang tải danh mục nhân viên và mã ca từ backend...
+                </div>
+              )}
+              {catalogError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-center justify-between gap-3 text-xs text-rose-800">
+                  <span className="font-bold">{catalogError}</span>
+                  <button
+                    type="button"
+                    onClick={() => void loadCatalogs()}
+                    className="shrink-0 px-3 py-1.5 bg-white border border-rose-300 rounded-lg font-bold hover:bg-rose-100"
+                  >
+                    Tải lại
+                  </button>
+                </div>
+              )}
               
               {/* Employee directory management */}
               <div className="bg-white border border-zinc-200 rounded-xl p-4 space-y-4 shadow-sm">
@@ -1287,7 +1342,12 @@ function App() {
                         }
 
                         return filtered.map(emp => (
-                          <tr key={emp.id} className="hover:bg-zinc-50 transition-colors">
+                          <tr
+                            key={emp.id}
+                            className={`hover:bg-zinc-50 transition-colors ${
+                              emp.status === 'inactive' ? 'opacity-55' : ''
+                            }`}
+                          >
                             <td className="p-2.5 font-mono text-zinc-500">
                               {emp.level === 'HUB' || emp.id.startsWith('HUB_') ? '-' : emp.id}
                             </td>
@@ -1326,13 +1386,26 @@ function App() {
                               </div>
                             </td>
                             <td className="p-2.5 text-right">
-                              <button
-                                onClick={() => openEditEmployee(emp)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[10px] font-bold border border-zinc-300 rounded transition-all"
-                              >
-                                <Pencil size={11} />
-                                Sửa
-                              </button>
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  onClick={() => openEditEmployee(emp)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[10px] font-bold border border-zinc-300 rounded transition-all"
+                                >
+                                  <Pencil size={11} />
+                                  Sửa
+                                </button>
+                                <button
+                                  onClick={() => void handleEmployeeStatus(emp)}
+                                  disabled={emp.id === currentUser?.id}
+                                  className={`px-2.5 py-1 text-[10px] font-bold border rounded transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                                    emp.status === 'active'
+                                      ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                                      : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                  }`}
+                                >
+                                  {emp.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ));
@@ -1439,7 +1512,12 @@ function App() {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {filteredShifts.map(shift => (
-                          <div key={shift.code} className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-between shadow-sm hover:border-zinc-300 transition-all">
+                          <div
+                            key={shift.code}
+                            className={`p-3 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-between shadow-sm hover:border-zinc-300 transition-all ${
+                              shift.status === 'inactive' ? 'opacity-55' : ''
+                            }`}
+                          >
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-bold border ${getShiftColor(shift.code)}`}>
@@ -1459,12 +1537,25 @@ function App() {
                                 )}
                               </div>
                             </div>
-                            <button
-                              onClick={() => openEditShift(shift)}
-                              className="p-1 text-zinc-400 hover:text-zinc-700 bg-white border border-zinc-200 rounded transition-all"
-                            >
-                              <Pencil size={12} />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => openEditShift(shift)}
+                                className="p-1 text-zinc-400 hover:text-zinc-700 bg-white border border-zinc-200 rounded transition-all"
+                                title="Sửa mã ca"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <button
+                                onClick={() => void handleShiftStatus(shift)}
+                                className={`px-2 py-1 text-[10px] font-bold border rounded transition-all ${
+                                  shift.status === 'inactive'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                                }`}
+                              >
+                                {shift.status === 'inactive' ? 'Bật' : 'Tắt'}
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1494,6 +1585,7 @@ function App() {
         setEmpForm={setEmpForm}
         empFormMode={empFormMode}
         onSubmit={handleSaveEmployee}
+        isSubmitting={catalogSubmitting}
       />
 
       <ShiftModal
@@ -1503,6 +1595,7 @@ function App() {
         setShiftForm={setShiftForm}
         shiftFormMode={shiftFormMode}
         onSubmit={handleSaveShift}
+        isSubmitting={catalogSubmitting}
       />
 
     </div>

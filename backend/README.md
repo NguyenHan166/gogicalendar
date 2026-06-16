@@ -79,8 +79,8 @@ is required locally. For a separately hosted backend, set
 add the frontend origin to backend `CORS_ORIGINS`.
 
 The frontend keeps the JWT access token in memory and restores sessions through the
-HttpOnly refresh cookie. The backend now exposes employee and shift APIs, while
-frontend integration and schedule APIs remain work for later phases.
+HttpOnly refresh cookie. Employee and shift screens now use these backend APIs.
+Schedule integration remains work for later phases.
 
 ### Existing JSON imports
 

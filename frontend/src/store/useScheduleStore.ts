@@ -6,14 +6,16 @@ import type {
   ShiftAssignment,
   EmployeePreference
 } from '../data/mockData';
-import { 
-  mockEmployees, 
-  mockShiftCodes, 
-  mockSchedules
-} from '../data/mockData';
-import { authApi, getApiErrorMessage } from '../lib/api';
+import { mockSchedules } from '../data/mockData';
+import {
+  authApi,
+  employeeApi,
+  getApiErrorMessage,
+  shiftApi,
+} from '../lib/api';
 
 type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
+type CatalogStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 interface ScheduleStore {
   employees: Employee[];
@@ -23,12 +25,15 @@ interface ScheduleStore {
   currentUser: Employee | null;
   authStatus: AuthStatus;
   authError: string | null;
+  catalogStatus: CatalogStatus;
+  catalogError: string | null;
   
   // Auth Actions
   initializeAuth: () => Promise<void>;
   loginEmployee: (employeeIdOrPhone: string) => Promise<boolean>;
   loginManager: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  loadCatalogs: () => Promise<void>;
   setCurrentUser: (user: string | Employee | null) => void;
   
   // Week Actions
@@ -48,20 +53,38 @@ interface ScheduleStore {
   updateForecast: (weekId: string, forecast: WeeklySchedule['forecast']) => void;
   
   // Admin Settings Actions
-  addEmployee: (employee: Employee) => void;
-  updateEmployee: (employee: Employee) => void;
-  addShiftCode: (shift: ShiftCode) => void;
-  updateShiftCode: (shift: ShiftCode) => void;
+  addEmployee: (employee: Employee) => Promise<Employee>;
+  updateEmployee: (employee: Employee) => Promise<Employee>;
+  updateEmployeeStatus: (id: string, status: Employee['status']) => Promise<Employee>;
+  addShiftCode: (shift: ShiftCode) => Promise<ShiftCode>;
+  updateShiftCode: (shift: ShiftCode) => Promise<ShiftCode>;
+  updateShiftStatus: (
+    code: string,
+    status: 'active' | 'inactive',
+  ) => Promise<ShiftCode>;
 }
 
-export const useScheduleStore = create<ScheduleStore>((set) => ({
-  employees: mockEmployees,
-  shiftCodes: mockShiftCodes,
+async function fetchCatalogs(user: Employee): Promise<{
+  employees: Employee[];
+  shiftCodes: ShiftCode[];
+}> {
+  const [employees, shiftCodes] = await Promise.all([
+    user.role === 'manager' ? employeeApi.list() : Promise.resolve([user]),
+    shiftApi.list(),
+  ]);
+  return { employees, shiftCodes };
+}
+
+export const useScheduleStore = create<ScheduleStore>((set, get) => ({
+  employees: [],
+  shiftCodes: [],
   schedules: mockSchedules,
   currentWeekId: "2026-W25",
   currentUser: null,
   authStatus: 'loading',
   authError: null,
+  catalogStatus: 'idle',
+  catalogError: null,
 
   initializeAuth: async () => {
     try {
@@ -70,9 +93,20 @@ export const useScheduleStore = create<ScheduleStore>((set) => ({
         currentUser: session.profile,
         authStatus: 'authenticated',
         authError: null,
+        catalogStatus: 'loading',
+        catalogError: null,
       });
+      await get().loadCatalogs();
     } catch {
-      set({ currentUser: null, authStatus: 'anonymous', authError: null });
+      set({
+        currentUser: null,
+        employees: [],
+        shiftCodes: [],
+        authStatus: 'anonymous',
+        authError: null,
+        catalogStatus: 'idle',
+        catalogError: null,
+      });
     }
   },
 
@@ -84,7 +118,10 @@ export const useScheduleStore = create<ScheduleStore>((set) => ({
         currentUser: session.profile,
         authStatus: 'authenticated',
         authError: null,
+        catalogStatus: 'loading',
+        catalogError: null,
       });
+      await get().loadCatalogs();
       return true;
     } catch (error: unknown) {
       set({
@@ -104,7 +141,10 @@ export const useScheduleStore = create<ScheduleStore>((set) => ({
         currentUser: session.profile,
         authStatus: 'authenticated',
         authError: null,
+        catalogStatus: 'loading',
+        catalogError: null,
       });
+      await get().loadCatalogs();
       return true;
     } catch (error: unknown) {
       set({
@@ -120,7 +160,30 @@ export const useScheduleStore = create<ScheduleStore>((set) => ({
     try {
       await authApi.logout();
     } finally {
-      set({ currentUser: null, authStatus: 'anonymous', authError: null });
+      set({
+        currentUser: null,
+        employees: [],
+        shiftCodes: [],
+        authStatus: 'anonymous',
+        authError: null,
+        catalogStatus: 'idle',
+        catalogError: null,
+      });
+    }
+  },
+
+  loadCatalogs: async () => {
+    const user = get().currentUser;
+    if (!user) return;
+    set({ catalogStatus: 'loading', catalogError: null });
+    try {
+      const catalogs = await fetchCatalogs(user);
+      set({ ...catalogs, catalogStatus: 'ready', catalogError: null });
+    } catch (error: unknown) {
+      set({
+        catalogStatus: 'error',
+        catalogError: getApiErrorMessage(error),
+      });
     }
   },
   
@@ -305,23 +368,97 @@ export const useScheduleStore = create<ScheduleStore>((set) => ({
     )
   })),
   
-  addEmployee: (employee) => set((state) => ({
-    employees: [...state.employees, employee]
-  })),
+  addEmployee: async (employee) => {
+    try {
+      const created = await employeeApi.create(employee);
+      set((state) => ({
+        employees: [...state.employees, created],
+        catalogError: null,
+      }));
+      return created;
+    } catch (error: unknown) {
+      set({ catalogError: getApiErrorMessage(error) });
+      throw error;
+    }
+  },
   
-  updateEmployee: (updatedEmployee) => set((state) => ({
-    employees: state.employees.map((e) => 
-      e.id === updatedEmployee.id ? updatedEmployee : e
-    )
-  })),
+  updateEmployee: async (employee) => {
+    try {
+      const updated = await employeeApi.update(employee);
+      set((state) => ({
+        employees: state.employees.map((item) =>
+          item.id === updated.id ? updated : item,
+        ),
+        currentUser:
+          state.currentUser?.id === updated.id ? updated : state.currentUser,
+        catalogError: null,
+      }));
+      return updated;
+    } catch (error: unknown) {
+      set({ catalogError: getApiErrorMessage(error) });
+      throw error;
+    }
+  },
+
+  updateEmployeeStatus: async (id, status) => {
+    try {
+      const updated = await employeeApi.updateStatus(id, status);
+      set((state) => ({
+        employees: state.employees.map((item) =>
+          item.id === updated.id ? updated : item,
+        ),
+        catalogError: null,
+      }));
+      return updated;
+    } catch (error: unknown) {
+      set({ catalogError: getApiErrorMessage(error) });
+      throw error;
+    }
+  },
   
-  addShiftCode: (shift) => set((state) => ({
-    shiftCodes: [...state.shiftCodes, shift]
-  })),
+  addShiftCode: async (shift) => {
+    try {
+      const created = await shiftApi.create(shift);
+      set((state) => ({
+        shiftCodes: [...state.shiftCodes, created],
+        catalogError: null,
+      }));
+      return created;
+    } catch (error: unknown) {
+      set({ catalogError: getApiErrorMessage(error) });
+      throw error;
+    }
+  },
   
-  updateShiftCode: (updatedShift) => set((state) => ({
-    shiftCodes: state.shiftCodes.map((s) => 
-      s.code === updatedShift.code ? updatedShift : s
-    )
-  }))
+  updateShiftCode: async (shift) => {
+    try {
+      const updated = await shiftApi.update(shift);
+      set((state) => ({
+        shiftCodes: state.shiftCodes.map((item) =>
+          item.code === updated.code ? updated : item,
+        ),
+        catalogError: null,
+      }));
+      return updated;
+    } catch (error: unknown) {
+      set({ catalogError: getApiErrorMessage(error) });
+      throw error;
+    }
+  },
+
+  updateShiftStatus: async (code, status) => {
+    try {
+      const updated = await shiftApi.updateStatus(code, status);
+      set((state) => ({
+        shiftCodes: state.shiftCodes.map((item) =>
+          item.code === updated.code ? updated : item,
+        ),
+        catalogError: null,
+      }));
+      return updated;
+    } catch (error: unknown) {
+      set({ catalogError: getApiErrorMessage(error) });
+      throw error;
+    }
+  },
 }));

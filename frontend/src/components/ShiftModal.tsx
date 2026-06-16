@@ -8,6 +8,7 @@ interface ShiftModalProps {
   setShiftForm: React.Dispatch<React.SetStateAction<ShiftCode>>;
   shiftFormMode: 'add' | 'edit';
   onSubmit: (e: React.FormEvent) => void;
+  isSubmitting?: boolean;
 }
 
 export function ShiftModal({
@@ -17,6 +18,7 @@ export function ShiftModal({
   setShiftForm,
   shiftFormMode,
   onSubmit,
+  isSubmitting = false,
 }: ShiftModalProps) {
   if (!isOpen) return null;
 
@@ -70,7 +72,7 @@ export function ShiftModal({
               <label className="block text-[10px] text-zinc-500 font-extrabold uppercase mb-1">Giờ bắt đầu</label>
               <input
                 type="text"
-                required
+                required={shiftForm.type === 'work'}
                 value={shiftForm.startTime}
                 onChange={(e) => setShiftForm(prev => ({ ...prev, startTime: e.target.value }))}
                 placeholder="HH:MM"
@@ -81,7 +83,7 @@ export function ShiftModal({
               <label className="block text-[10px] text-zinc-500 font-extrabold uppercase mb-1">Giờ kết thúc</label>
               <input
                 type="text"
-                required
+                required={shiftForm.type === 'work'}
                 value={shiftForm.endTime}
                 onChange={(e) => setShiftForm(prev => ({ ...prev, endTime: e.target.value }))}
                 placeholder="HH:MM"
@@ -189,9 +191,10 @@ export function ShiftModal({
           </button>
           <button
             type="submit"
-            className="px-3 py-1.5 bg-[#f4b084] hover:bg-[#e29d71] text-zinc-950 text-xs font-extrabold rounded-lg transition-colors border border-[#e29d71]"
+            disabled={isSubmitting}
+            className="px-3 py-1.5 bg-[#f4b084] hover:bg-[#e29d71] disabled:opacity-60 disabled:cursor-wait text-zinc-950 text-xs font-extrabold rounded-lg transition-colors border border-[#e29d71]"
           >
-            Lưu Mã Ca
+            {isSubmitting ? 'Đang lưu...' : 'Lưu Mã Ca'}
           </button>
         </div>
       </form>

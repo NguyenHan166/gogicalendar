@@ -9,6 +9,7 @@ interface EmployeeModalProps {
   setEmpForm: React.Dispatch<React.SetStateAction<Employee>>;
   empFormMode: 'add' | 'edit';
   onSubmit: (e: React.FormEvent) => void;
+  isSubmitting?: boolean;
 }
 
 export function EmployeeModal({
@@ -18,6 +19,7 @@ export function EmployeeModal({
   setEmpForm,
   empFormMode,
   onSubmit,
+  isSubmitting = false,
 }: EmployeeModalProps) {
   if (!isOpen) return null;
 
@@ -207,9 +209,10 @@ export function EmployeeModal({
           </button>
           <button
             type="submit"
-            className="px-3 py-1.5 bg-[#f4b084] hover:bg-[#e29d71] text-zinc-950 text-xs font-extrabold rounded-lg transition-colors border border-[#e29d71]"
+            disabled={isSubmitting}
+            className="px-3 py-1.5 bg-[#f4b084] hover:bg-[#e29d71] disabled:opacity-60 disabled:cursor-wait text-zinc-950 text-xs font-extrabold rounded-lg transition-colors border border-[#e29d71]"
           >
-            Lưu Nhân Viên
+            {isSubmitting ? 'Đang lưu...' : 'Lưu Nhân Viên'}
           </button>
         </div>
       </form>
