@@ -1,8 +1,8 @@
 import mongoose, { Types, type ClientSession, type FilterQuery } from 'mongoose';
 
 import { AppError } from '../../lib/app-error.js';
+import { writeAuditLog } from '../../lib/audit-log.js';
 import {
-  AuditLogModel,
   EmployeeModel,
   ShiftCodeModel,
   WeeklyScheduleModel,
@@ -128,8 +128,20 @@ export interface StaffingSummaryDto {
 
 const allowedTransitions: Record<ScheduleStatus, ScheduleStatus[]> = {
   draft: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
-  registration_open: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
-  registration_locked: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
+  registration_open: [
+    'draft',
+    'registration_open',
+    'registration_locked',
+    'scheduling',
+    'published',
+  ],
+  registration_locked: [
+    'draft',
+    'registration_open',
+    'registration_locked',
+    'scheduling',
+    'published',
+  ],
   scheduling: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
   published: ['draft', 'registration_open', 'registration_locked', 'scheduling', 'published'],
 };
@@ -938,12 +950,6 @@ export class ScheduleService {
         { new: true, runValidators: true, ...(session ? { session } : {}) },
       ).lean();
 
-    if (!auditAction) {
-      const updated = await runUpdate();
-      if (!updated) throw versionConflict(await this.repository.findByWeekId(input.current.weekId));
-      return updated;
-    }
-
     const session = await mongoose.startSession();
     try {
       let updated: WeeklySchedule | null = null;
@@ -953,7 +959,7 @@ export class ScheduleService {
           throw versionConflict(await this.repository.findByWeekId(input.current.weekId));
         await this.writeAudit(
           {
-            action: auditAction,
+            action: `schedule.${input.resource}.update`,
             changes:
               input.current.status === 'registration_locked'
                 ? {
@@ -969,6 +975,26 @@ export class ScheduleService {
           },
           session,
         );
+        if (auditAction) {
+          await this.writeAudit(
+            {
+              action: auditAction,
+              changes:
+                input.current.status === 'registration_locked'
+                  ? {
+                      from: 'registration_locked',
+                      to: 'scheduling',
+                      reason: 'assignment_or_forecast_edit',
+                      ...input.changes,
+                    }
+                  : input.changes,
+              context: input.context,
+              principal: input.principal,
+              resourceId: input.current.weekId,
+            },
+            session,
+          );
+        }
       });
       if (!updated) throw versionConflict();
       return updated;
@@ -1202,23 +1228,17 @@ export class ScheduleService {
     },
     session: ClientSession,
   ): Promise<void> {
-    await AuditLogModel.create(
-      [
-        {
-          action: input.action,
-          resourceType: 'weekly_schedule',
-          resourceId: input.resourceId,
-          actorEmployeeId: input.principal.employeeId,
-          actorRole: input.principal.role,
-          outcome: 'success',
-          ...(input.context.requestId ? { requestId: input.context.requestId } : {}),
-          ...(input.context.ip ? { ip: input.context.ip } : {}),
-          ...(input.context.userAgent ? { userAgent: input.context.userAgent } : {}),
-          ...(input.reason ? { reason: input.reason } : {}),
-          ...(input.changes ? { changes: input.changes } : {}),
-        },
-      ],
-      { session },
+    await writeAuditLog(
+      {
+        action: input.action,
+        resourceType: 'weekly_schedule',
+        resourceId: input.resourceId,
+        principal: input.principal,
+        context: input.context,
+        ...(input.reason ? { reason: input.reason } : {}),
+        ...(input.changes ? { changes: input.changes } : {}),
+      },
+      session,
     );
   }
 }

@@ -5,6 +5,7 @@ import {
   AuditLogModel,
   EmployeeModel,
   RefreshTokenModel,
+  SchemaMigrationModel,
   ShiftCodeModel,
   UserCredentialModel,
   WeeklyScheduleModel,
@@ -17,6 +18,7 @@ const models = [
   WeeklyScheduleModel,
   RefreshTokenModel,
   AuditLogModel,
+  SchemaMigrationModel,
 ] as const;
 
 export interface IndexSyncResult {

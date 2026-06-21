@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import type { AppEnv } from '../config/env.js';
+import { createAuditRouter } from '../modules/audit/audit.routes.js';
 import { createAuthRouter } from '../modules/auth/auth.routes.js';
 import { createAuthService } from '../modules/auth/auth.service.js';
 import type { AuthService } from '../modules/auth/auth.types.js';
@@ -29,5 +30,6 @@ export function createApiRouter(dependencies: ApiRouterDependencies = {}): Route
   router.use(createEmployeeRouter(authService));
   router.use(createShiftRouter(authService));
   router.use(createScheduleRouter(authService));
+  router.use(createAuditRouter(authService));
   return router;
 }

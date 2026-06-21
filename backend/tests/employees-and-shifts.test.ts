@@ -2,7 +2,12 @@ import bcrypt from 'bcryptjs';
 import request from 'supertest';
 
 import { ensureApplicationIndexes } from '../src/lib/indexes.js';
-import { EmployeeModel, ShiftCodeModel, UserCredentialModel } from '../src/models/index.js';
+import {
+  AuditLogModel,
+  EmployeeModel,
+  ShiftCodeModel,
+  UserCredentialModel,
+} from '../src/models/index.js';
 import type { AuthSession } from '../src/modules/auth/auth.types.js';
 import { createTestApp } from './helpers/test-app.js';
 import {
@@ -115,7 +120,7 @@ describe('employee and shift modules', () => {
       .set('authorization', `Bearer ${token}`)
       .send(employeePayload);
 
-    expect(list.status).toBe(200);
+    expect(list.status).toBe(403);
     expect(self.status).toBe(200);
     expect(self.body).toMatchObject({ data: { id: 'E001', skills: { Service: true } } });
     expect(other.status).toBe(403);
@@ -298,5 +303,31 @@ describe('employee and shift modules', () => {
     ).toEqual(['INACTIVE']);
     expect(disabled.status).toBe(200);
     expect((disabled.body as { data: { status: string } }).data.status).toBe('inactive');
+    expect(await AuditLogModel.countDocuments({ action: 'shift.status.update' })).toBe(1);
+  });
+
+  it('audits employee mutations and exposes audit logs to managers only', async () => {
+    await createIdentity('M001', 'manager', '0900000001');
+    await createIdentity('E001', 'employee', '0900000002');
+    const app = createTestApp();
+    const manager = await managerToken(app);
+    const employee = await employeeToken(app, 'E001');
+
+    const created = await request(app)
+      .post('/api/employees')
+      .set('authorization', `Bearer ${manager}`)
+      .send(employeePayload);
+    const denied = await request(app)
+      .get('/api/audit-logs')
+      .set('authorization', `Bearer ${employee}`);
+    const auditLogs = await request(app)
+      .get('/api/audit-logs')
+      .query({ action: 'employee.create', resourceType: 'employee', resourceId: 'E100' })
+      .set('authorization', `Bearer ${manager}`);
+
+    expect(created.status).toBe(201);
+    expect(denied.status).toBe(403);
+    expect(auditLogs.status).toBe(200);
+    expect((auditLogs.body as { meta: { total: number } }).meta.total).toBe(1);
   });
 });

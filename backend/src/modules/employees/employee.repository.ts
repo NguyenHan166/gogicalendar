@@ -1,7 +1,12 @@
 import type { FilterQuery } from 'mongoose';
 
 import { normalizePhone } from '../../lib/phone.js';
-import { EmployeeModel, UserCredentialModel, WeeklyScheduleModel, type Employee } from '../../models/index.js';
+import {
+  EmployeeModel,
+  UserCredentialModel,
+  WeeklyScheduleModel,
+  type Employee,
+} from '../../models/index.js';
 import type {
   EmployeeCreateInput,
   EmployeeListInput,
@@ -112,24 +117,24 @@ export class EmployeeRepository {
       await WeeklyScheduleModel.updateMany(
         { 'preferences.employeeId': employeeId },
         { $set: { 'preferences.$[elem].employeeId': newEmployeeId } },
-        { arrayFilters: [{ 'elem.employeeId': employeeId }] }
+        { arrayFilters: [{ 'elem.employeeId': employeeId }] },
       );
 
       await WeeklyScheduleModel.updateMany(
         { 'preferences.overriddenByEmployeeId': employeeId },
         { $set: { 'preferences.$[elem].overriddenByEmployeeId': newEmployeeId } },
-        { arrayFilters: [{ 'elem.overriddenByEmployeeId': employeeId }] }
+        { arrayFilters: [{ 'elem.overriddenByEmployeeId': employeeId }] },
       );
 
       await WeeklyScheduleModel.updateMany(
         { 'assignments.employeeId': employeeId },
         { $set: { 'assignments.$[elem].employeeId': newEmployeeId } },
-        { arrayFilters: [{ 'elem.employeeId': employeeId }] }
+        { arrayFilters: [{ 'elem.employeeId': employeeId }] },
       );
 
       await WeeklyScheduleModel.updateMany(
         { publishedByEmployeeId: employeeId },
-        { $set: { publishedByEmployeeId: newEmployeeId } }
+        { $set: { publishedByEmployeeId: newEmployeeId } },
       );
     }
 

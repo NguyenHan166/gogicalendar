@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
 import { AppError } from '../../lib/app-error.js';
+import { writeAuditLog } from '../../lib/audit-log.js';
 import { normalizePhone } from '../../lib/phone.js';
 import type { Employee } from '../../models/index.js';
+import type { AuthPrincipal, AuthRequestContext } from '../auth/auth.types.js';
 import { EmployeeRepository } from './employee.repository.js';
 import type {
   EmployeeCreateInput,
@@ -58,7 +60,11 @@ function isDuplicateKey(error: unknown): boolean {
 export class EmployeeService {
   public constructor(private readonly repository = new EmployeeRepository()) {}
 
-  public async create(input: EmployeeCreateInput): Promise<EmployeeDto> {
+  public async create(
+    input: EmployeeCreateInput,
+    principal: AuthPrincipal,
+    context: AuthRequestContext,
+  ): Promise<EmployeeDto> {
     const phone = normalizePhone(input.phone);
     if (!phone) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Số điện thoại không hợp lệ');
@@ -69,7 +75,16 @@ export class EmployeeService {
     if (await this.repository.idExists(employeeId)) throw duplicateError('id');
 
     try {
-      return toDto(await this.repository.create(employeeId, { ...input, phone }));
+      const employee = await this.repository.create(employeeId, { ...input, phone });
+      await writeAuditLog({
+        action: 'employee.create',
+        changes: { employeeId, role: employee.role, status: employee.status },
+        context,
+        principal,
+        resourceId: employeeId,
+        resourceType: 'employee',
+      });
+      return toDto(employee);
     } catch (error: unknown) {
       if (isDuplicateKey(error)) {
         if (await this.repository.findByPhone(phone)) throw duplicateError('phone');
@@ -98,7 +113,12 @@ export class EmployeeService {
     };
   }
 
-  public async update(employeeId: string, input: EmployeeUpdateInput): Promise<EmployeeDto> {
+  public async update(
+    employeeId: string,
+    input: EmployeeUpdateInput,
+    principal: AuthPrincipal,
+    context: AuthRequestContext,
+  ): Promise<EmployeeDto> {
     const phone = normalizePhone(input.phone);
     if (!phone) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Số điện thoại không hợp lệ');
@@ -113,7 +133,21 @@ export class EmployeeService {
     try {
       const employee = await this.repository.update(employeeId, newEmployeeId, { ...input, phone });
       if (!employee) throw new AppError(404, 'EMPLOYEE_NOT_FOUND', 'Không tìm thấy nhân viên');
-      return toDto((await this.repository.updateStatus(newEmployeeId, input.status)) ?? employee);
+      const updated = (await this.repository.updateStatus(newEmployeeId, input.status)) ?? employee;
+      await writeAuditLog({
+        action: 'employee.update',
+        changes: {
+          employeeId,
+          newEmployeeId,
+          status: updated.status,
+          phoneChanged: employee.phone !== phone,
+        },
+        context,
+        principal,
+        resourceId: newEmployeeId,
+        resourceType: 'employee',
+      });
+      return toDto(updated);
     } catch (error: unknown) {
       if (isDuplicateKey(error)) {
         if (await this.repository.findByPhone(phone, employeeId)) throw duplicateError('phone');
@@ -123,9 +157,22 @@ export class EmployeeService {
     }
   }
 
-  public async updateStatus(employeeId: string, status: Employee['status']): Promise<EmployeeDto> {
+  public async updateStatus(
+    employeeId: string,
+    status: Employee['status'],
+    principal: AuthPrincipal,
+    context: AuthRequestContext,
+  ): Promise<EmployeeDto> {
     const employee = await this.repository.updateStatus(employeeId, status);
     if (!employee) throw new AppError(404, 'EMPLOYEE_NOT_FOUND', 'Không tìm thấy nhân viên');
+    await writeAuditLog({
+      action: 'employee.status.update',
+      changes: { status },
+      context,
+      principal,
+      resourceId: employeeId,
+      resourceType: 'employee',
+    });
     return toDto(employee);
   }
 

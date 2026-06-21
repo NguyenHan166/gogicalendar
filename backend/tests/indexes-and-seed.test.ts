@@ -1,9 +1,11 @@
 import {
   EmployeeModel,
+  SchemaMigrationModel,
   ShiftCodeModel,
   UserCredentialModel,
   WeeklyScheduleModel,
 } from '../src/models/index.js';
+import { runMigrations } from '../scripts/migrate.js';
 import { ensureApplicationIndexes } from '../src/lib/indexes.js';
 import { seedDatabase } from '../src/lib/seed.js';
 import {
@@ -35,6 +37,17 @@ describe('MongoDB infrastructure', () => {
 
     expect(employeeIndexes.some((index) => index.name === 'uq_employee_id')).toBe(true);
     expect(scheduleIndexes.some((index) => index.name === 'uq_schedule_week_id')).toBe(true);
+  });
+
+  it('records schema migrations idempotently', async () => {
+    await runMigrations();
+    await runMigrations();
+
+    expect(
+      await SchemaMigrationModel.countDocuments({
+        migrationId: '001-ensure-application-indexes',
+      }),
+    ).toBe(1);
   });
 
   it('runs the demo seed idempotently', async () => {

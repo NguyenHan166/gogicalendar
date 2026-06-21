@@ -1,0 +1,50 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gogi-calendar-backend:latest
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      LOG_LEVEL: info
+      LOG_PRETTY: 'false'
+      MONGODB_URI: ${MONGODB_URI:?set in deployment environment}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME:-gogicalendar}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set in deployment environment}
+      CORS_ORIGINS: ${CORS_ORIGINS:?set allowed frontend origins}
+      SEED_DEMO_DATA: 'false'
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(''http://127.0.0.1:3000/api/ready'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:8.0
+    command: ['mongod', '--replSet', 'rs0', '--bind_ip_all', '--port', '27017']
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'mongosh --quiet --eval "try { rs.status().ok } catch (error) { rs.initiate({_id:''rs0'',members:[{_id:0,host:''mongo:27017''}]}).ok }" || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

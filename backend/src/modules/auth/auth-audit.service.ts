@@ -1,4 +1,5 @@
-import { AuditLogModel, type AuditActorRole, type AuditOutcome } from '../../models/index.js';
+import { writeAuditLog } from '../../lib/audit-log.js';
+import type { AuditActorRole, AuditOutcome } from '../../models/index.js';
 import type { AuthRequestContext } from './auth.types.js';
 
 export interface AuthAuditInput {
@@ -13,16 +14,14 @@ export interface AuthAuditInput {
 }
 
 export async function writeAuthAudit(input: AuthAuditInput): Promise<void> {
-  await AuditLogModel.create({
+  await writeAuditLog({
     action: input.action,
     resourceType: 'auth_session',
     outcome: input.outcome,
     ...(input.actorEmployeeId ? { actorEmployeeId: input.actorEmployeeId } : {}),
     ...(input.actorRole ? { actorRole: input.actorRole } : {}),
     ...(input.resourceId ? { resourceId: input.resourceId } : {}),
-    ...(input.context.requestId ? { requestId: input.context.requestId } : {}),
-    ...(input.context.ip ? { ip: input.context.ip } : {}),
-    ...(input.context.userAgent ? { userAgent: input.context.userAgent } : {}),
+    context: input.context,
     ...(input.reason ? { reason: input.reason } : {}),
     ...(input.metadata ? { metadata: input.metadata } : {}),
   });

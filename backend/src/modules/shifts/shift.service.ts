@@ -1,5 +1,7 @@
 import { AppError } from '../../lib/app-error.js';
+import { writeAuditLog } from '../../lib/audit-log.js';
 import type { EmployeeRole, ShiftCode } from '../../models/index.js';
+import type { AuthPrincipal, AuthRequestContext } from '../auth/auth.types.js';
 import { ShiftRepository } from './shift.repository.js';
 import type { ShiftCreateInput, ShiftListInput, ShiftUpdateInput } from './shift.schemas.js';
 
@@ -49,13 +51,26 @@ function isDuplicateKey(error: unknown): boolean {
 export class ShiftService {
   public constructor(private readonly repository = new ShiftRepository()) {}
 
-  public async create(input: ShiftCreateInput): Promise<ShiftDto> {
+  public async create(
+    input: ShiftCreateInput,
+    principal: AuthPrincipal,
+    context: AuthRequestContext,
+  ): Promise<ShiftDto> {
     const code = input.code.toUpperCase();
     if (await this.repository.findByCode(code)) {
       throw new AppError(409, 'SHIFT_CODE_EXISTS', 'Mã ca đã tồn tại');
     }
     try {
-      return toDto(await this.repository.create(code, input));
+      const shift = await this.repository.create(code, input);
+      await writeAuditLog({
+        action: 'shift.create',
+        changes: { code, type: shift.type, status: shift.status },
+        context,
+        principal,
+        resourceId: code,
+        resourceType: 'shift_code',
+      });
+      return toDto(shift);
     } catch (error: unknown) {
       if (isDuplicateKey(error)) {
         throw new AppError(409, 'SHIFT_CODE_EXISTS', 'Mã ca đã tồn tại');
@@ -85,15 +100,46 @@ export class ShiftService {
     };
   }
 
-  public async update(code: string, input: ShiftUpdateInput): Promise<ShiftDto> {
+  public async update(
+    code: string,
+    input: ShiftUpdateInput,
+    principal: AuthPrincipal,
+    context: AuthRequestContext,
+  ): Promise<ShiftDto> {
     const shift = await this.repository.update(code.toUpperCase(), input);
     if (!shift) throw new AppError(404, 'SHIFT_NOT_FOUND', 'Không tìm thấy mã ca');
+    await writeAuditLog({
+      action: 'shift.update',
+      changes: {
+        code: shift.code,
+        type: shift.type,
+        status: shift.status,
+        isSplit: shift.isSplit,
+      },
+      context,
+      principal,
+      resourceId: shift.code,
+      resourceType: 'shift_code',
+    });
     return toDto(shift);
   }
 
-  public async updateStatus(code: string, status: ShiftCode['status']): Promise<ShiftDto> {
+  public async updateStatus(
+    code: string,
+    status: ShiftCode['status'],
+    principal: AuthPrincipal,
+    context: AuthRequestContext,
+  ): Promise<ShiftDto> {
     const shift = await this.repository.updateStatus(code.toUpperCase(), status);
     if (!shift) throw new AppError(404, 'SHIFT_NOT_FOUND', 'Không tìm thấy mã ca');
+    await writeAuditLog({
+      action: 'shift.status.update',
+      changes: { status },
+      context,
+      principal,
+      resourceId: shift.code,
+      resourceType: 'shift_code',
+    });
     return toDto(shift);
   }
 }
